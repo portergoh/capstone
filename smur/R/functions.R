@@ -1,10 +1,14 @@
+#' Custom install packages function
+#'
 #' Install and load multiple R packages.
 #' Check to see if packages are installed. Install them if they are not,
 #' then load them into the R session.
 #'
-#' @param pkg require package name
+#' @param pkg a vector of package names to be installed
 #' @export
-#'
+#' @examples
+#' install_packages (pkg)
+
 install_packages <- function(pkg) {
   new.pkg <- pkg[!(pkg %in% installed.packages()[, "Package"])]
   if (length(new.pkg))
@@ -13,14 +17,16 @@ install_packages <- function(pkg) {
   sapply(pkg, library, character.only = TRUE)
 }
 
-#' Special Gift functions from Prof Roh
+#' Special Gift function from Prof Roh
+#' For Statistical Inference using Regression
 #'
 #' @param my_model_estimation lm model
 #' @param mydigit round off decimal places
 #' @export
-#' for Statistical Inference using Regression
-#'
-OLS_summary_function <- function(my_model_estimation, mydigit){
+#' @examples
+#' OLS_summary_function (my_model_estimation, mydigit)
+
+OLS_summary_function <- function (my_model_estimation, mydigit){
   mycoefs = tidy(my_model_estimation) %>%
     mutate(
       est2=format(round(estimate, mydigit),mydigit),
@@ -49,13 +55,17 @@ OLS_summary_function <- function(my_model_estimation, mydigit){
   mytable
 }
 
+#' Region to districts mapping function
+#'
 #' Compute districts grouping between 3 main - regions
 #' CCR: Core Central Region (D01,D02,D06,D09,D10,D11)
 #' RCR: Rest of Central Region (D03,D04,D05,D07,D08,D12,D13,D14,D15,D20)
 #' OCR: Outside Central Region (D16,D17,D18,D19,D21,D22...D28)
 #'
 #' @return a tibble object with region and districts mapping
-#'
+#' @examples
+#' get_regiondistricts ()
+
 get_regiondistricts <- function(){
   CCR <- str_pad(c(1,2,6,9:11),2, "left", pad="0")
   RCR <- str_pad(c(3:5,7,8,12:15,20),2,"left", pad="0")
@@ -70,13 +80,17 @@ get_regiondistricts <- function(){
   return(scaffold)
 }
 
+#' Parse node content from read_html()
+#'
 #' Parse an xmlnode set object to extract out the fields
 #' TOP and condo name
 #' Only for content in - https://condo.singaporeexpats.com/%d/name/%s
 #'
 #' @param nodes xmlnode object
 #' @return a tibble containing condo name and TOP
-#'
+#' @examples
+#' parse_nodecontent (nodes)
+
 parse_nodecontent <- function(nodes) {
   condo_name <- html_nodes(nodes,".title_link") %>% html_attr("title")
 
@@ -88,14 +102,18 @@ parse_nodecontent <- function(nodes) {
   return(tibble(condo_name,top_year))
 }
 
+#' Parse node content from read_html()
+#'
 #' Parse an xmlnode set object to extract out the fields
 #' TOP and condo name
 #' Only for content in -
 #' https://www.singaporeexpats.com/singapore-property-pictures/photos-%s.htm
 #'
 #' @param nodes xmlnode object
-#' @return A tibble containing condo name and TOP
-#'
+#' @return a tibble containing condo name and TOP
+#' @examples
+#' parse_nodecontent2 (nodes)
+
 parse_nodecontent2 <- function(nodes) {
   condo_name <- html_nodes(nodes,".propertyname") %>%
     html_text()
@@ -103,7 +121,6 @@ parse_nodecontent2 <- function(nodes) {
     html_text()
 
   return(tibble(condo_name,km_mrt))
-
 }
 
 #' Perform webscraping for https://condo.singaporeexpats.com/%d/name/%s
@@ -112,7 +129,9 @@ parse_nodecontent2 <- function(nodes) {
 #'
 #' @param url: string object of the targeted url
 #' @return: A tibble containing condo name, district and age
-#'
+#' @examples
+#' scrape_singaporeexpats (url)
+
 scrape_singaporeexpats <- function(url) {
   records_per_page <- 50
   webpage <- read_html(url)
@@ -134,7 +153,9 @@ scrape_singaporeexpats <- function(url) {
 #'
 #' @param url: string object of the targeted url
 #' @return: A tibble containing condo name, district and age
-#'
+#' @examples
+#' scrape_singaporeexpats2 (url)
+
 scrape_singaporeexpats2 <- function(url) {
   base_list<-c("A-G", "H-S", "T-Z")
 
@@ -148,8 +169,11 @@ scrape_singaporeexpats2 <- function(url) {
 }
 
 #' Collect data from singaporeexpats website
-#' @return singaporeexpats dataset
 #'
+#' @return singaporeexpats dataset
+#' @examples
+#' data_from_singaporeexpats ()
+
 data_from_singaporeexpats <- function(){
   no_str <- "0-9"
   url1 <- "https://condo.singaporeexpats.com/1/name/%s"
@@ -190,7 +214,9 @@ data_from_singaporeexpats <- function(){
 #'            successful activation of account.
 #' @return the token generated from the request token service
 #'         for daily data request.
-#'
+#' @examples
+#' get_onedaytoken (access_key)
+
 get_onedaytoken <- function(access_key){
   url <- "https://www.ura.gov.sg/uraDataService/insertNewToken.action"
   response <- GET(url,
@@ -230,7 +256,9 @@ get_onedaytoken <- function(access_key){
 #' @param key The access key included in the email upon
 #             successful activation of account.
 #' @return a tibble data frame with the json results
-#'
+#' @examples
+#' data_from_ura (access_key)
+
 data_from_ura<- function(access_key){
   oneday_token <- get_onedaytoken(access_key)
   url <- "https://www.ura.gov.sg/uraDataService/invokeUraDS?service=PMI_Resi_Rental_Median"
@@ -260,7 +288,9 @@ data_from_ura<- function(access_key){
 #' @param crawl default to F, otherwise get the dataset from actual website
 #' @return: tibble object of the dataset
 #' @export
-#'
+#' @examples
+#' get_condo_dataset (ura_access_key, save_to = "", crawl = F)
+
 get_condo_dataset <- function(ura_access_key,
                               save_to = "",
                               crawl = F) {
@@ -309,11 +339,13 @@ get_condo_dataset <- function(ura_access_key,
   return(condo_dataset)
 }
 
-#' Check if input path is empty
+#' Function to check if input path is empty
 #'
 #' @param file image path
 #' @return True if file path is specified else false
-#'
+#' @examples
+#' not_empty (file)
+
 not_empty <- function(file) {
   return(file !="")
 }
@@ -323,7 +355,9 @@ not_empty <- function(file) {
 #' @param fit lm model
 #' @param save_to path of the image to save
 #' @export
-#'
+#' @examples
+#' plot_fit (fit, save_to ="")
+
 plot_fit <- function(fit, save_to =""){
   if(not_empty(save_to)) png(save_to)
   par(mfrow=c(2,2)) # Change the panel layout to 2 x 2
@@ -345,7 +379,9 @@ plot_fit <- function(fit, save_to =""){
 #' @param save_to path of the image to save
 #' @return the scatterplot
 #' @export
-#'
+#' @examples
+#' plot_scatterplot (data, var_x, var_y, var_color="", labs, regression = F, save_to = "")
+
 plot_scatterplot <- function(data,
                              var_x,
                              var_y,
