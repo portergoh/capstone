@@ -4,7 +4,7 @@ smur_install <- function ()
 {
   # Define some vars
   smur_tgz  = "smur_0.1.0.tgz"
-  smur_from = "https://github.com/portergoh/capstone/raw/master/download/smur_0.1.0.tgz"
+  smur_from = paste0 ("https://github.com/portergoh/capstone/raw/master/download/",smur_tgz)
   smur_to = file.path (getwd(), smur_tgz, fsep=.Platform$file.sep )
 
   # Download source.
