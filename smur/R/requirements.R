@@ -1,8 +1,8 @@
 #-----------------------------------------------------------------------#
-#' Load the required packages for smur
+#' Load the require packages for smur
 #-----------------------------------------------------------------------#
 packages <- c("ggplot2",
-	            "rvest",
+              "rvest",
               "fastDummies",
               "GGally",
               "tidyverse",
@@ -12,5 +12,5 @@ packages <- c("ggplot2",
               "modelr",
               "broom")
 
-check_packages(packages)
+install_packages(packages)
 
