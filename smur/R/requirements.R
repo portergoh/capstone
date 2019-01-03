@@ -12,6 +12,5 @@ packages <- c("ggplot2",
               "modelr",
               "broom")
 
-source("functions.R")
 check_packages(packages)
 
