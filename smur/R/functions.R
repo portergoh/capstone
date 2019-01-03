@@ -5,7 +5,7 @@
 #' @param pkg require package name
 #' @export
 #'
-check_packages <- function(pkg) {
+install_packages <- function(pkg) {
   new.pkg <- pkg[!(pkg %in% installed.packages()[, "Package"])]
   if (length(new.pkg))
     install.packages(new.pkg, dependencies = TRUE)
@@ -75,7 +75,7 @@ get_regiondistricts <- function(){
 #' Only for content in - https://condo.singaporeexpats.com/%d/name/%s
 #'
 #' @param nodes xmlnode object
-#' @return A tibble containing condo name and TOP
+#' @return a tibble containing condo name and TOP
 #'
 parse_nodecontent <- function(nodes) {
   condo_name <- html_nodes(nodes,".title_link") %>% html_attr("title")
@@ -150,7 +150,7 @@ scrape_singaporeexpats2 <- function(url) {
 #' Collect data from singaporeexpats website
 #' @return singaporeexpats dataset
 #'
-collectdata_from_singaporeexpats <- function(){
+data_from_singaporeexpats <- function(){
   no_str <- "0-9"
   url1 <- "https://condo.singaporeexpats.com/1/name/%s"
   url2 <- "https://www.singaporeexpats.com/singapore-property-pictures/photos-%s.htm"
@@ -231,7 +231,7 @@ get_onedaytoken <- function(access_key){
 #             successful activation of account.
 #' @return a tibble data frame with the json results
 #'
-collectdata_from_ura<- function(access_key){
+data_from_ura<- function(access_key){
   oneday_token <- get_onedaytoken(access_key)
   url <- "https://www.ura.gov.sg/uraDataService/invokeUraDS?service=PMI_Resi_Rental_Median"
 
@@ -255,45 +255,52 @@ collectdata_from_ura<- function(access_key){
 
 #' Data Collection from URA service API & singaporeexpats website
 #'
-#' @param save_to: path to save for the dataset
+#' @param url_access_key access key for URA data servivce API
+#' @param save_to path to save for the dataset
+#' @param crawl default to F, otherwise get the dataset from actual website
 #' @return: tibble object of the dataset
 #' @export
 #'
-get_condo_dataset <- function(ura_access_key, save_to = "") {
+get_condo_dataset <- function(ura_access_key,
+                              save_to = "",
+                              crawl = F) {
+  if(crawl == T) {
+    ura_rent_dataset <- data_from_ura(ura_access_key)
+    #write_csv(ura_rent_dataset, paste0("ura_rent.csv"), na = "")
+    #glimpse(ura_rent_dataset)
 
-  ura_rent_dataset <- collectdata_from_ura(ura_access_key)
-  #write_csv(ura_rent_dataset, paste0("ura_rent.csv"), na = "")
-  #glimpse(ura_rent_dataset)
+    # Group by condo_name and district in nested data frame
+    ura_rent_dataset <- ura_rent_dataset %>%
+     group_by(condo_name, district) %>%
+      nest() %>%
+      arrange(district, condo_name)
 
-  # Group by condo_name and district in nested data frame
-  ura_rent_dataset <- ura_rent_dataset %>%
-    group_by(condo_name, district) %>%
-    nest() %>%
-    arrange(district, condo_name)
+    #glimpse(ura_rent_dataset)
+    singaporeexpats_dataset <- data_from_singaporeexpats()
+    #write_csv(singaporeexpats_dataset, paste0("singaporeexpats.csv"), na = "")
+    #glimpse(singaporeexpats_dataset)
 
-  #glimpse(ura_rent_dataset)
-  singaporeexpats_dataset <- collectdata_from_singaporeexpats()
-  #write_csv(singaporeexpats_dataset, paste0("singaporeexpats.csv"), na = "")
-  #glimpse(singaporeexpats_dataset)
+    # Join ura_dataset with singaporeexpats_dataset
+    condo_dataset <- ura_rent_dataset  %>%
+      left_join(singaporeexpats_dataset, by="condo_name") %>%
+      unnest() %>%
+      filter(complete.cases(.))
 
-  # Join ura_dataset with singaporeexpats_dataset
-  condo_dataset <- ura_rent_dataset  %>%
-    left_join(singaporeexpats_dataset, by="condo_name") %>%
-    unnest() %>%
-    filter(complete.cases(.))
+    # Add in region into the merged dataset
+    condo_dataset <- condo_dataset %>%
+      left_join(get_regiondistricts(), by="district")
 
-  # Add in region into the merged dataset
-  condo_dataset <- condo_dataset %>%
-    left_join(get_regiondistricts(), by="district")
-
-  # Derive new variables for "rentlease_year" etc..
-  condo_dataset <- condo_dataset %>%
-    mutate(ref_year = str_sub(refPeriod, 1, 4)) %>%
-    mutate(condo_age = as.numeric(ref_year) - as.numeric(top_year)+1) %>%
-    mutate(x_coord = as.numeric(as.character(x_coord))) %>%
-    mutate(y_coord =as.numeric(as.character(y_coord))) %>%
-    rename(median_rent = median) %>%
-    filter(condo_age > 0)
+    # Derive new variables for "rentlease_year" etc..
+    condo_dataset <- condo_dataset %>%
+      mutate(ref_year = str_sub(refPeriod, 1, 4)) %>%
+      mutate(condo_age = as.numeric(ref_year) - as.numeric(top_year)+1) %>%
+      mutate(x_coord = as.numeric(as.character(x_coord))) %>%
+      mutate(y_coord =as.numeric(as.character(y_coord))) %>%
+      rename(median_rent = median) %>%
+      filter(condo_age > 0)
+  }else{
+    condo_dataset <- read_csv("https://raw.githubusercontent.com/portergoh/capstone/master/download/condo_dataset.csv")
+  }
 
   #glimpse(condo_dataset)
   if (not_empty(save_to))
