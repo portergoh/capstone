@@ -13,4 +13,5 @@ packages <- c("ggplot2",
               "broom")
 
 install_packages(packages)
+library(smur)
 
