@@ -313,7 +313,7 @@ get_condo_dataset <- function(ura_access_key = "6117f3d4-81e2-4b3e-9ff9-2640045d
       rename(median_rent = median) %>%
       filter(condo_age > 0)
   }else{
-    condo_dataset <- read.csv("https://raw.githubusercontent.com/portergoh/capstone/master/download/condo_dataset.csv",
+    condo_dataset <- read.csv("https://raw.githubusercontent.com/portergoh/capstone/master/data/condo_dataset.csv",
                               stringsAsFactors = F,
                               colClasses = c("character",
                                              "factor",
