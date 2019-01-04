@@ -354,10 +354,12 @@ not_empty <- function(file) {
 
 plot_fit <- function(fit, save_to =""){
   if(not_empty(save_to)) png(save_to)
+
   par(mfrow=c(2,2)) # Change the panel layout to 2 x 2
   par(mar=c(2.5,3,3,2.5))
   plot(fit)
   par(mfrow=c(1,1)) # Change back to 1 x 1
+
   if (not_empty(save_to)) dev.off()
 }
 

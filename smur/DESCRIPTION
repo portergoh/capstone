@@ -1,0 +1,13 @@
+Package: smur
+Title: Capstone project for Data Analytics Specialist R Certification Program
+Version: 0.0.0.9000
+Authors@R: as.person(c(
+    "Brian Sum <sumkh2@gmail.com> [aut]", 
+    "Khee Teck Goh <kheeteck@yahoo.com> [aut, cre]"
+  ))
+Description: Dataset for non-landed private apartments in Singapore
+Depends: R (>= 3.5.1)
+License: GNU General Public License
+Encoding: UTF-8
+LazyData: true
+RoxygenNote: 6.1.1
