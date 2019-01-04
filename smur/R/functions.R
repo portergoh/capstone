@@ -309,7 +309,9 @@ get_condo_dataset <- function(ura_access_key = "6117f3d4-81e2-4b3e-9ff9-2640045d
       mutate(ref_year = str_sub(refPeriod, 1, 4)) %>%
       mutate(condo_age = as.numeric(ref_year) - as.numeric(top_year)+1) %>%
       mutate(x_coord = as.numeric(as.character(x_coord))) %>%
-      mutate(y_coord =as.numeric(as.character(y_coord))) %>%
+      mutate(y_coord = as.numeric(as.character(y_coord))) %>%
+      mutate(district = as.factor(district) %>%
+      mutate(region = as.factor(region) %>%
       rename(median_rent = median) %>%
       filter(condo_age > 0)
   }else{
