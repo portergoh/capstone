@@ -1,0 +1,525 @@
+---
+title: "Data Analytics Specialist R Certification Program"
+output: 
+  html_document:
+          highlight: pygments
+          theme: united
+          number_sections: true
+          fig_caption: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, fig.cap = " ")
+```
+
+# Overview of the Project
+For living or staying in Singapore, a major expenditure item for most people is the expenditure on residential properties. Majority of the Singaporean and permanent residents owned and stayed in non-landed residential properties comprising of HDB developed housing units or privately developed residential properties funded by their monthly mortgage instalment payment. There is also a significant number of Singaporean, permanent residents and foreigners who arrived in Singapore for employments stayed in rented residential properties: HDB or private. 
+
+# Problem Statements
+For a person interested to stay in non-landed private apartment, he or she will face a wide range of choices. Subjected to the budget constraint for the lease, he or she has to select based on the apartment’s location, kind of facilities available and amenities (e.g. nearby MRT, supermarket etc) surrounding the property. 
+
+For a person interested to make an investment in non-landed private apartment for passive rental income, subjected to the budget constraint to invest in the property, he or she has a difficult choice to make in terms of whether to invest in newly developed or existing property and the location to search for property which will offer the suitable rental rate.
+
+It is widely acknowledged that the rental price rate per square feet (sq.ft) is largely driven by the location of the property, and to certain extent the economic condition of Singapore which influence the demand (e.g. inflow of foreigners into the country for employment) and supply (e.g. vacancy and newly developed unit available for let) of the private residential units for rental market. However, the expectation of the rental price is usually based on the recently transacted rental price of neighboring apartments.
+
+# Project’s Objective
+Amongst the driving forces of the rental rate for private residential property, we would like to establish some useful metrics that could help to provide a measure for the expected rental rate in different locations. These analysis result can be used as benchmark information for house hunters during their search through the internet listing to rent their ideal home.
+
+# Project's Scope
+We will explore the relationship of non-landed private residential properties rental rates using 3 metrices:
+
+* Age of the properties derived from the TOP year
+* Location of the properties based on District and Region
+* Distance from MRT stations.
+
+If there is a significant correlation for the rental rate, age of the property, its location and distance from MRT, we will go further to establish a model to depict such a relationship. 
+
+## Dataset(s)
+Source of data for private residential properties’ rental transactions is obtained from Urban Redevelopment Authority (“URA”) website. URA publishes URA related data for public use and is available for download via API data service. The data service provides past 36 months rental transactions data with rental contracts submitted to IRAS for Stamp Duty assessment in JSON format. 
+
+* https://www.ura.gov.sg/maps/api/private-residential-properties-rental-contract
+
+Data for the private residential properties’ TOP (by year) and MRT proximity is obtained via web scrapping from the SingaporeExpats.com website:
+
+* https://condo.singaporeexpats.com
+* https://www.singaporeexpats.com/singapore-property-pictures/photos-A-G.htm
+
+# Data Collection
+All web scaping routines are consolidated into smur package for easy access in this capstone project.
+
+R source code is also available in github for reference
+
+* https://github.com/portergoh/capstone
+
+
+```{r, echo=FALSE, include=FALSE}
+# Set your working directory
+setwd("/Users/kheeteck/data/gcs/dasr")
+library(devtools)
+
+# Install our custom built smur package which contains the condo dataset.
+# Data collection routines are packed into smur package for easy access 
+install("capstone/smur")
+library(smur)
+
+# Load all require packages and install them if necessary
+requiredPackages <- c('ggplot2',
+                      'tidyverse',
+                      'httr',
+                      'jsonlite',
+                      'rvest',
+                      'psych',
+                      'ggpubr',
+                      'gvlma',
+                      'gridExtra')
+
+check_packages(requiredPackages)
+
+# Retrieve our condo dataset from smur
+condo_dataset <- get_condo_dataset()
+```
+
+## Partition our condo dataset
+
+We split our main dataset (3,128) into 2 groups, 
+
+* training (2,346)
+* testing (782)
+
+First, we choose an arbitary seed number as the starting point to be used in the generation of a sequence of random numbers.
+
+Training sample is used for evaluating our models during analysis
+and the test set will be used to validate and cross check against the  effectiveness and accuracy of our chosen model.
+
+*\* Please ensure that you have provided the same seed number in order to obtain the same result everytime you run your analysis.*
+
+# Data Visualisation
+
+```{r, include=FALSE}
+set.seed(123)
+
+condo_dataset <- condo_dataset %>% mutate(id = 1:nrow(condo_dataset))
+train_set <- sample_frac(condo_dataset, .75)
+test_set <- anti_join(condo_dataset, train_set, by = 'id')
+
+glimpse(train_set)
+glimpse(test_set)
+
+```
+## Dependent variable - Median Rental Rate/sqft
+
+### Observation using density plot
+Our dependent variable is the Median Rent Rate/sqft for private non-landed properties in Singapore. 
+
+Density plot provides a visual judgment about whether the distribution is bell shaped. We are seeing the rental rate to be rightly skewed.
+
+A log transformation maybe useful to normalise the distribution.
+
+```{r, echo=FALSE, fig.width=6}
+
+plot1 <- ggdensity(train_set$median_rent,
+          main="Density plot of Median Rental Rate/sqft",
+          xlab="Median Rental Rate/sqft")
+
+plot1
+
+```
+
+### Observation using qqplot
+
+As all the points doesn't fall approximately along the reference line, we cannot assume normality. This is further confirmed by the Shapiro-Wilk's test. From the output, the p-value < 0.05, implying that the distribution of the data are significantly different from normal distribution.
+
+```{r, echo=FALSE, fig.width=6}
+ggqqplot(train_set$median_rent)
+shapiro.test(train_set$median_rent)
+```
+
+## Independent variable - Condo age
+
+### Observation using scatter plot and regression
+
+Property age is often one of the important criteria for home hunters when they decide on whether to rent the place.
+
+As expected, we observed an inverse relationship between Median Rental rate and Condo age. We can see that as the property become older, the median rental rate drops.
+
+We also plotted 3 regression lines using 
+
+* darkgreen: LOWESS (LOcally WEighted Scatter-plot Smoother)
+* deepskyblue: Straight line in Linear Regression
+* red: Curve Fitting using Polynomial Terms in Linear Regression
+
+It appears that our regression line may fit better using curvilinear than a straight line. 
+There is more well balanced data points center around the curve than the straight line at the 40th year mark.
+
+
+```{r, echo=FALSE, fig.width=7}
+
+age_params <- tibble(title = "Median Rental Rate vs Age of Condominium",
+                     subtitle = "Is there a Relationship ?",
+                     xlab = "Age of Condominium",
+                     ylab = "Median Rental Rate/sqft")
+
+var_x <- "condo_age"
+var_y <- "median_rent"
+
+plot2 <- train_set %>% ggplot_scatter(var_x, 
+                             var_y, 
+                             labs = age_params)
+
+plot2
+
+```
+
+### using boxplot
+
+1st year condominium tend to command a premium in median rental rate. It could also be related to new condo which are pricier, therefore is able to charged a higher rental rates.
+
+Older condos, especially those more than 20 years, they are much cheaper to rent.
+
+
+```{r, echo=FALSE, fig.width=7}
+
+# Transform the condo age into category
+train_set$condo_age_f <- train_set$condo_age %>%
+  cut(.,breaks=c(0,10,20,30,40,50),
+               c("1-10","11-20","21-30","31-40","41-50")) %>%
+        as.factor()
+
+res <- train_set %>%
+  group_by(condo_age_f) %>%
+  summarise(rent_rate=median(median_rent))
+
+
+plot3 <- train_set %>% boxplot_basic(median_rent ~ condo_age,
+                                     labs = age_params) 
+
+res 
+```
+
+We also see a pattern in terms of the median rental rate range, the fall turn steeper from the 10-20 year mark (average fall ~$0.5/sqft for every 5 years) and then slow down. Over the next 3 decades, the total fall is estimated about ~0.4/sqft.
+
+*\* Outliers between age group 1-20 years maybe a concern and need to be reviewed using Cook's distance to check for influential points.*
+
+### Observations of Median Rental Rate contracts
+
+In terms of the rental contracts submitted to URA over a period of 3 years from (2015 - 2017), it seems that properties after 21 years old are less attractive to users, and therefore we see lesser contracts submitted, making the distribution right skewed.
+
+
+```{r, echo=FALSE,fig.width=7}
+
+contract_params <- tibble(main = "Median Rental Rate Contracts",
+                          xlab = "Age of Condominium",
+                          ylab = "Count",
+                          col  = "deepskyblue")
+  
+                         
+plot4 <- barplot(table(train_set$condo_age),
+                 main = contract_params$main,
+                 xlab = contract_params$xlab,
+                 ylab = contract_params$ylab,
+                 col  = contract_params$col,
+                 ylim = c(0,150),
+                 cex.names =0.8)
+
+
+
+```
+
+
+### Condo age and Median Rental Rate with region perspective
+
+From the visual interpretation of this plot, we can see a distinctive pattern that properties located in CCR region command the highest median rent rate follow by RCR which is sandwiched in between CCR and OCR.
+
+It looks like the current zoning of districts into CCR, RCR and OCR is applicable for condo rental rates.
+
+    
+```{r, echo=FALSE,fig.width=7}
+
+x <- "condo_age"
+y <- "median_rent"
+age_params$title = "Median Rent rate vs Age of Condominium by Region"
+
+plot5 <- train_set %>%
+  ggplot_basic(var_x= x, var_y = y, labs=age_params) +
+   geom_point(stat = "Identity", aes(col = region)) 
+ 
+plot5
+```
+
+## Independent variable - proximity to MRT
+
+Next, let us look at how the proximity from MRT for a property may affect its rental rate. We feel that this too maybe an important factor that user will consider when deciding to rent on a property.
+  
+### Observation using scatter plot and regression
+
+This plot seems to concur with the popular belief that if your property is located further away from MRT, it will become less attractive to users. However, some properties that are located more than 2.7 km away, appeared to have bucked the trend, suggesting that a curvilinear relationship may be a better fit.
+
+
+
+```{r, echo=FALSE, fig.width = 7}
+
+# Data transformation to get the mrt distance
+train_set <- train_set %>%
+  separate(km_mrt, c("km", "mrt"), sep="-", remove=FALSE) %>%
+  mutate(km = as.numeric(km)) %>%
+  mutate(mrt = as.factor(str_trim(mrt)))
+
+mrt_params <- tibble(title="Median Rental Rate vs Distance from MRT",
+                     subtitle="Is there a Relationship ?",
+                     xlab="Distance from MRT (km)",
+                     ylab="Median Rental Rate/sqft")
+
+var_x <- "km"
+
+plot6 <- train_set %>% ggplot_scatter(var_x, 
+                                      var_y, 
+                                      labs  = mrt_params) +
+                                      ylim(c(1,8))
+
+plot6
+
+```
+
+Our regression lines for both polynomial and loess method match closely.
+
+Lack of data points in the 2-3 km range may obscure or influence our analysis as we try to extrapolate our data points.
+
+### Distribution of condo measured by proximity to MRT in each district
+  
+An interesting observation, District 4 appeared to have the widest IQR in term of distance from MRT.
+
+* District 4 consists mainly of areas in Keppel, Mount Faber, Sentosa, Telok Blangah. 
+
+
+
+```{r,fig.width=7}
+
+plot7 <- boxplot(km ~ district, data = train_set,
+                 notch=FALSE, # Show confidence interval
+                 varwidth=TRUE, # Show sample size
+                 col="lightgreen",
+                 main="Distance from MRT vs District",
+                 xlab="District Location",
+                 ylab="Distance from MRT") 
+
+quantile_val <- train_set %>%
+                   filter(district =="04") %>%
+                   select(km) %>%
+                   quantile(c(0.25,1.0), na.rm = TRUE)
+
+abline(h = quantile_val[[1]])
+abline(h = quantile_val[[2]])
+
+quantile_val   
+```
+
+In fact, 75% of the data points range widely between 0.7 - 3.3 km mark, indicating a very scattered distribution of the location of properties from MRT.
+
+### What happens if we single out district 4 only ?
+
+After filtering out the rest of the districts, we find that data points for district 4 are located primarily in the left and right hand side of the plot and there is much emptiness in the middle.  
+
+```{r, echo=FALSE, fig.width = 10}
+
+var_x <- "km"
+var_y <- "median_rent"
+
+plot8 <- train_set %>%
+  ggplot_basic(var_x, var_y, labs = mrt_params ) +
+  geom_point(stat = "Identity", aes(col = district)) +
+  ylim(c(1.5,8))
+ 
+plot9 <- train_set %>%
+  filter(district == "04") %>%
+  ggplot_basic(var_x, var_y, labs = mrt_params ) +
+  geom_point(stat = "Identity", col = "orange3") +
+  ylim(c(1.5,8))
+
+grid.arrange(plot8, 
+             plot9, 
+             widths = c(2,1.6),
+             ncol=2)
+
+```
+
+### Compare the scatterplot with and without district 4
+  
+A side to side comparison with our earlier scatterplot (plot6), we can now see that if we had taken out district 4, it may affect our decision on whether it being curvilinear or a straight line.
+    
+  
+```{r,echo=FALSE, fig.width = 10}
+
+plot10 <- train_set %>%
+           filter(district !="04") %>%
+           ggplot_scatter(var_x, 
+                          var_y, 
+                          labs  = mrt_params) +
+           ylim(c(1,8))
+
+grid.arrange(plot6, plot10, ncol=2)
+
+```
+
+### Rental contracts count measure by proximity to MRT
+
+It seems that the rental contracts that is submitted to URA over a period of 3 years (2015 -2017) falls as the property become further away from MRT.
+
+  
+```{r, fig.width=7}
+
+contract_params$xlab <- "Distance from MRT"
+
+plot11 <- barplot(table(train_set$km),
+                  main = contract_params$main,
+                  xlab = contract_params$xlab,
+                  ylab = contract_params$ylab,
+                  col  = contract_params$col,
+                  cex.names=0.8)
+
+```
+
+### Condo distribution in each region measured by proximity from MRT
+
+Most of the condo in CCR are within 1km distance from MRT.
+
+Most of the condo in RCR and OCR are within 2km from MRT.
+
+Again, we see district 4 different from the rest, with a wide spread of properties distributed
+unevenly from MRT.
+
+    
+```{r, fig.width=7}
+
+var_x <- "km"
+var_y <- "median_rent"
+mrt_params$title <- "Median Rent rate vs Distance from MRT by Region"
+
+plot12 <- train_set %>%
+  ggplot_basic(var_x, var_y, labs = mrt_params ) +
+  geom_point(stat = "Identity", aes(col = region)) 
+
+plot12
+
+```
+
+## Independent variable - Districts
+
+### Is there a trend for Median Rental Rate in each district locations ?
+
+The median rental rate saw the greatest variation in CCR follow by RCR and OCR. Properties in OCR is most stable in their median rental rate across most districts.
+
+#### Interesting facts on each region 
+
+In CCR, condo in District 2 charged the highest median rental rate, 
+
+* District 10: charged the lowest median rental rate
+* District 2: Anson Road, Chinatown, Neil Road, Raffles Place, Shenton Way, Tanjong Pagar
+* District 10: Balmoral, Bukit Timah, Grange Road, Holland, Orchard Boulevard, River Valley, Tanglin
+
+In OCR, condo in District 28 charged the highest median rental rate, 
+
+* District 17: charged the lowest median rental rate
+* District 28: Seletar, Yio Chu Kang
+* District 17: Changi, Loyang, Pasir Ris
+
+In RCR, condo in District 7 charged the highest median rental rate, 
+
+* District 20: charged the lowest median rental rate
+* District 7: Beach Road, Bencoolen Road, Bugis, Rochor
+* District 20: Ang Mo Kio, Bishan, Braddell Road, Thomson
+  
+
+```{r, echo=FALSE,fig.width=10}
+
+var_x <- "district"
+var_y <- "median_rent"
+fill_by <- "region"
+
+district_params <- tibble(title = "Median Rental Rates vs District Location of Condominium by Region",
+                          subtitle = "Is there a Relationship between Districts and Regions?",
+                          xlab = "District Location",
+                          ylab = "Median Rental Rate/sqft")
+
+#res <- train_set %>%
+#  group_by(district) %>%
+#  summarise(rent_rate=median(median_rent))
+
+plot13 <- train_set %>% ggplot_basic(var_x,
+                                     var_y,
+                                     var_fill = fill_by,
+                                     district_params) +
+   
+                         geom_boxplot(stat = "boxplot", varwidth = TRUE) +
+  
+                         facet_wrap(~region, scale = "free_x") 
+  
+plot13
+
+```
+
+### Another look from the perspecive of region/districts on Condominium proximity to MRT
+
+Most condos are within 1-2km proximity from MRT, reaffirming the results in plot 11.
+
+In CCR, all districts has IQR less than 1km from MRT. 
+
+* District 1: Boat Quay, Chinatown, Havelock Road, Marina Square, Raffles Place, Suntec City
+
+In OCR, only District 17 has IQR above the 1km from MRT. 
+
+In RCR, District 4 (Keppel, Mount Faber, Sentosa, Telok Blangah) has the widest IQR.
+
+```{r, echo=FALSE, fig.width = 10}
+
+var_x <- "district"
+var_y <- "km"
+fill_by <- "region"
+district_params$title <- "Distance from MRT vs District Location of Condominium by Region"
+district_params$subtitle <- "Most properties located within 1km away from MRT"
+district_params$ylab  <- "Distance from MRT (in KM)"
+
+plot14 <- train_set %>% ggplot_basic(var_x = var_x,
+                                     var_y = var_y,
+                                     var_fill = fill_by,
+                                     district_params) +
+   
+                         geom_boxplot(stat = "boxplot", varwidth = TRUE) +
+                         geom_hline(aes(yintercept = 1), colour = "red", size = 0.5, linetype = "dashed") +
+                         facet_wrap(~region, scale = "free_x") 
+  
+                       
+
+plot14
+
+```
+
+### Rental contracts distribution in each region/districts
+
+We can see that even though the total number of Median rental contracts submitted to URA over a 3 year period (2015-2017) varies widely across different districts, in totality when group by different regions, they are actually quite close to each other.
+
+
+```{r,fig.width=10}
+  
+contract_params$xlab <- "District Number"
+
+par(mfrow=c(1,2)) # Change the panel layout to 1 x 2
+
+plot15 <- barplot(table(train_set$district),
+                  main = contract_params$main,
+                  xlab = contract_params$xlab,
+                  ylab = contract_params$ylab,
+                  cex.names=0.8)
+
+contract_params$xlab <- "Region"
+
+plot16 <- barplot(table(train_set$region),
+                  main = contract_params$main,
+                  xlab = contract_params$xlab,
+                  ylab = contract_params$ylab,
+                  cex.names=0.8)
+
+par(mfrow=c(1,1)) # Change back to 1 x 1
+
+```
+
+

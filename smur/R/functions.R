@@ -1,60 +1,3 @@
-#' Custom install packages function
-#'
-#' Install and load multiple R packages.
-#' Check to see if packages are installed. Install them if they are not,
-#' then load them into the R session.
-#'
-#' @param pkg a vector of package names to be installed
-#' @export
-#' @examples
-#' install_packages (pkg)
-
-install_packages <- function(pkg) {
-  new.pkg <- pkg[!(pkg %in% installed.packages()[, "Package"])]
-  if (length(new.pkg))
-    install.packages(new.pkg, dependencies = TRUE)
-
-  sapply(pkg, library, character.only = TRUE)
-}
-
-#' Special Gift function from Prof Roh
-#' For Statistical Inference using Regression
-#'
-#' @param my_model_estimation lm model
-#' @param mydigit round off decimal places
-#' @export
-#' @examples
-#' OLS_summary_function (my_model_estimation, mydigit)
-
-OLS_summary_function <- function (my_model_estimation, mydigit){
-  mycoefs = tidy(my_model_estimation) %>%
-    mutate(
-      est2=format(round(estimate, mydigit),mydigit),
-      se2=format(round(std.error, mydigit),mydigit),
-      mystars=cut(p.value,c(0,0.001,0.01,0.05,0.10,1),
-                  c("***","**","*","+",""),right=F),
-      report=str_c(" ",est2,mystars,"\n(",se2,")",sep="")
-    ) %>% select(term,report)
-  myGOF=glance(my_model_estimation) %>%
-    mutate_all(
-      funs(round(.,mydigit))
-    ) %>%
-    mutate(
-      mystars=cut(p.value,c(0,0.001,0.01,0.05,0.10,1),
-                  c("***","**","*","+",""),right=F),
-      model_dfs = str_c("(",(df-1),", ",df.residual,")"),
-      model_F = str_c(statistic,mystars),
-      R2=format(round(r.squared,mydigit),mydigit),
-      adjR2=format(round(adj.r.squared,mydigit),mydigit)
-    ) %>% select(model_F, model_dfs, R2, adjR2) %>%
-    gather(key=term,value=report)
-  mytable=bind_rows(mycoefs,myGOF) %>%
-    mutate(sortid=row_number()) %>%
-    select(sortid,term,report) %>%
-    mutate_at(vars(2:3),funs(as.character(.)))
-  mytable
-}
-
 #' Region to districts mapping function
 #'
 #' Compute districts grouping between 3 main - regions
@@ -118,10 +61,10 @@ parse_nodecontent2 <- function(nodes) {
 }
 
 #' Perform webscraping for https://condo.singaporeexpats.com/%d/name/%s
-#' %d - page number
-#' %s - A-Z
+#' page number
+#' A-Z
 #'
-#' @param url: string object of the targeted url
+#' @param url string object of the targeted url
 #' @return a tibble containing condo name, district and age
 
 scrape_singaporeexpats <- function(url) {
@@ -141,10 +84,10 @@ scrape_singaporeexpats <- function(url) {
 
 #' Perform webscraping for
 #' https://www.singaporeexpats.com/singapore-property-pictures/photos-%s.htm
-#' %s: A-G, H-S, T-Z
+#' A-G, H-S, T-Z
 #'
-#' @param url: string object of the targeted url
-#' @return: A tibble containing condo name, district and age
+#' @param url string object of the targeted url
+#' @return a tibble containing condo name, district and age
 
 scrape_singaporeexpats2 <- function(url) {
   base_list <- c("A-G", "H-S", "T-Z")
@@ -198,8 +141,8 @@ data_from_singaporeexpats <- function(){
 
 #' Get an access token from URA data service api
 #'
-#' @param key The access key included in the email upon
-#'            successful activation of account.
+#' @param access_key The access key included in the email upon
+#'                   successful activation of account.
 #' @return the token generated from the request token service
 #'         for daily data request.
 
@@ -211,7 +154,7 @@ get_onedaytoken <- function(access_key){
                     "AccessKey" = access_key
                   ))
 
-  result <- jsonlite::fromJSON(content(response, as="text", encoding="utf-8"))
+  result <- fromJSON(content(response, as="text", encoding="utf-8"))
   return(result[[1]])
 }
 
@@ -239,11 +182,11 @@ get_onedaytoken <- function(access_key){
 #' (psf75)         75th percentile rent rate per square feet per month
 #'                   for the property for the reference period.
 #'
-#' @param key The access key included in the email upon
-#             successful activation of account.
+#' @param access_key The access key included in the email upon
+#                    successful activation of account.
 #' @return a tibble data frame with the json results
 
-data_from_ura<- function(access_key){
+data_from_ura <- function(access_key){
   oneday_token <- get_onedaytoken(access_key)
   url <- "https://www.ura.gov.sg/uraDataService/invokeUraDS?service=PMI_Resi_Rental_Median"
 
@@ -254,7 +197,7 @@ data_from_ura<- function(access_key){
                     "Token" = oneday_token
                   ))
 
-  result <- jsonlite::fromJSON(content(response, as="text",encoding="utf-8"))
+  result <- fromJSON(content(response, as="text",encoding="utf-8"))
   result <- as_tibble(result[[1]]) %>%
     unnest() %>%
     select(condo_name = project,
@@ -262,23 +205,30 @@ data_from_ura<- function(access_key){
            y_coord = y,
            district, median, refPeriod)
 
-  return(result)
+  return (result)
+}
+
+#' Function to check if input path is empty
+#'
+#' @param file image path
+#' @return True if file path is specified else false
+
+not_empty <- function(file) {
+  return(file !="")
 }
 
 #' Data Collection from URA service API & singaporeexpats website
 #'
-#' @param url_access_key access key for URA data servivce API
+#' @param ura_access_key access key for URA data servivce API
 #' @param save_to path to save for the dataset
 #' @param crawl default to F, otherwise get the dataset from actual website
-#' @return: tibble object of the dataset
+#' @return tibble object of the dataset
 #' @export
-#' @examples
-#' get_condo_dataset (ura_access_key, save_to = "", crawl = F)
 
 get_condo_dataset <- function(ura_access_key = "6117f3d4-81e2-4b3e-9ff9-2640045d2b5a",
                               save_to = "",
-                              crawl = F) {
-  if(crawl == T) {
+                              crawl = FALSE) {
+  if(crawl == TRUE) {
     ura_rent_dataset <- data_from_ura(ura_access_key)
     #write_csv(ura_rent_dataset, paste0("ura_rent.csv"), na = "")
     #glimpse(ura_rent_dataset)
@@ -314,7 +264,9 @@ get_condo_dataset <- function(ura_access_key = "6117f3d4-81e2-4b3e-9ff9-2640045d
       mutate(region = as.factor(region)) %>%
       rename(median_rent = median) %>%
       filter(condo_age > 0)
+
   }else{
+
     condo_dataset <- read.csv("https://raw.githubusercontent.com/portergoh/capstone/master/data/condo_dataset.csv",
                               stringsAsFactors = F,
                               colClasses = c("character",
@@ -337,106 +289,131 @@ get_condo_dataset <- function(ura_access_key = "6117f3d4-81e2-4b3e-9ff9-2640045d
   return(condo_dataset)
 }
 
-#' Function to check if input path is empty
+#' Load the require R packages and install them
+#' if they are missing from the system
 #'
-#' @param file image path
-#' @return True if file path is specified else false
+#' @param requirePackages a vector containing the require packages
+#' @export
 
-not_empty <- function(file) {
-  return(file !="")
+check_packages <- function (requiredPackages) {
+  for (p in requiredPackages){
+    if(!require(p,character.only = TRUE))
+      install.packages(p)
+
+    library(p,character.only = TRUE)
+  }
 }
 
-#' Generate 4x residual plots to test for homoscedasticity
+#' Wrapper for ggplot to include the basic attributes of a plot
 #'
-#' @param fit lm model
-#' @param save_to path of the image to save
+#' @param df a data.frame (or list) from which the variables
+#'           in formula should be taken.
+#' @param var_x aes mapping for x axis
+#' @param var_y aes mapping for y axis
+#' @param var_fill aes mapping for fill attribute
+#' @param labs tibble object that contains the ggplot attributes
+#' @return ggplot object
 #' @export
-#' @examples
-#' plot_fit (fit, save_to ="")
 
-plot_fit <- function(fit, save_to =""){
-  if(not_empty(save_to)) png(save_to)
+ggplot_basic <- function(data,
+                         var_x,
+                         var_y,
+                         var_fill=NULL,
+                         labs){
+  g1 <- ggplot(data,
+               aes_string(x = var_x,
+                          y = var_y,
+                          fill= var_fill)) +
+
+    labs(title = labs$title,
+         subtitle = labs$subtitle,
+         x = labs$xlab,
+         y = labs$ylab) +
+
+    theme_bw() +
+
+    theme(plot.title = element_text(hjust = 0.5),
+          plot.subtitle = element_text(hjust = 0.5))
+
+  return (g1)
+}
+
+#' Residual plot
+#'
+#' @param fit lm object
+#' @export
+
+plot_fit <- function(fit){
 
   par(mfrow=c(2,2)) # Change the panel layout to 2 x 2
   par(mar=c(2.5,3,3,2.5))
   plot(fit)
   par(mfrow=c(1,1)) # Change back to 1 x 1
-
-  if (not_empty(save_to)) dev.off()
 }
 
-#' Generate a scatter plot with 3 regression lines using lm,
-#' lm with poly(x,2) and loess method
+#' Scatter plot with regression lines using ggplot
 #'
-#' @param data dataframe of the dataset
-#' @param var_x independent variable
-#' @param var_y dependent variable
-#' @param var_color mapping color
-#' @param labs tibble object for labs
-#' @param regression T/F
-#' @param save_to path of the image to save
-#' @return the scatterplot
+#' @param df a data.frame (or list) from which the variables
+#'           in formula should be taken.
+#' @param var_x aes mapping for x axis
+#' @param var_y aes mapping for y axis
+#' @param labs tibble object that contains the ggplot attributes
 #' @export
-#' @examples
-#' plot_scatterplot (data, var_x, var_y, var_color="", labs, regression = F, save_to = "")
 
-plot_scatterplot <- function(data,
-                             var_x,
-                             var_y,
-                             var_color = "",
-                             labs,
-                             regression = FALSE,
-                             save_to = "") {
+ggplot_scatter <- function(data,
+                           var_x,
+                           var_y,
+                           labs){
 
-  if (var_color != "") {
-    plot <- ggplot(data, aes(x = var_x, y = var_y, color = var_color))
-  } else {
-    plot <- ggplot(data, aes_string(x = var_x, y = var_y))
-  }
+  s1 <- ggplot_basic(data, var_x, var_y, labs=labs) +
 
-  plot <- plot + geom_point(alpha = 1/4,
-                            position='jitter')
-  if (regression) {
+          geom_point(alpha = 1/4,
+                     position='jitter') +
 
-    # use a locally weighted regression
-    plot <- plot + geom_smooth(method = loess,
-                               formula = y ~ x,
-                               aes(colour = "darkgreen",
-                                   group = 1),
-                               size = 0.5,
-                               se = FALSE) +
+          scale_colour_manual(name="lines",
+                              breaks = c("lm",
+                                         "lm - poly(x,2)",
+                                         "loess"),
 
-      # use a linear fit,
-      geom_smooth(method = lm,
-                  formula = y ~ x,
-                  aes(colour = "deepskyblue", group = 1),
-                  size = 0.5,
-                  se = FALSE) +
+                              values = c("deepskyblue",
+                                         "red",
+                                         "darkgreen"))
 
-      geom_smooth(method = lm,
-                  formula = y ~ poly(x, 2),
-                  aes(colour = "red", group = 1),
-                  size = 0.5,
-                  se = FALSE) +
+  s2 <- s1 +  geom_smooth(method = lm,
+                          formula = y ~ x,
+                          aes(colour = "lm", group = 1), size = 1, se = FALSE)
 
-      scale_colour_manual(name="legend",
-                          labels = c("loess", "lm", "lm - poly(x, 2)"),
-                          values = c("darkgreen", "deepskyblue", "red"))
-  }
+  s3 <- s2 + geom_smooth(method = lm,
+                         formula = y ~ poly(x, 2),
+                         aes(colour = "lm - poly(x,2)", group = 1), size = 1, se = FALSE)
 
-  plot <- plot + labs(title = labs$title,
-                      subtitle = labs$subtitle,
-                      x = labs$xlab,
-                      y = labs$ylab) +
+  s4 <- s3 + geom_smooth(method = loess,
+                         formula = y ~ x,
+                         aes(colour = "loess", group = 1), size = 1, se = FALSE)
 
-    theme_bw() +
-    theme(plot.title = element_text(hjust = 0.5),
-          plot.subtitle = element_text(hjust = 0.5))
+  s4
+}
 
-  if (not_empty(save_to)) png(save_to)
-    print(plot)
+#' Basic wrapper function for boxplot
+#'
+#' @param df a data.frame (or list) from which the variables
+#'           in formula should be taken.
+#' @param formula a formula, such as y ~ grp, where y is a numeric vector of data
+#'                values to be split into groups according to the
+#'                grouping variable grp (usually a factor)
+#' @param labs tibble object that contains the boxplot attributes
+#' @export
 
-  if (not_empty(save_to)) dev.off()
+boxplot_basic <- function(df,
+                          formula,
+                          labs){
 
-   return(plot)
+    boxplot(formula, data = df,
+            notch=FALSE, # Show confidence interval
+            varwidth=TRUE, # Show sample size
+            col  = "deepskyblue",
+            main = labs$title,
+            xlab = labs$xlab,
+            ylab = labs$ylab)
+
 }
