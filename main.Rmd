@@ -307,8 +307,8 @@ quantile_val <- train_set %>%
                    select(km) %>%
                    quantile(c(0.25,1.0), na.rm = TRUE)
 
-abline(h = quantile_val[[1]])
-abline(h = quantile_val[[2]])
+abline(h = quantile_val[[1]], color = "darkgreen")
+abline(h = quantile_val[[2]], color = "darkgreen")
 
 quantile_val   
 ```
@@ -412,21 +412,21 @@ The median rental rate saw the greatest variation in CCR follow by RCR and OCR. 
 
 In CCR, condo in District 2 charged the highest median rental rate, 
 
-* District 10: charged the lowest median rental rate
-* District 2: Anson Road, Chinatown, Neil Road, Raffles Place, Shenton Way, Tanjong Pagar
-* District 10: Balmoral, Bukit Timah, Grange Road, Holland, Orchard Boulevard, River Valley, Tanglin
+* **District 10**: charged the lowest median rental rate
+* **District 2**: Anson Road, Chinatown, Neil Road, Raffles Place, Shenton Way, Tanjong Pagar
+* **District 10**: Balmoral, Bukit Timah, Grange Road, Holland, Orchard Boulevard, River Valley, Tanglin
 
 In OCR, condo in District 28 charged the highest median rental rate, 
 
-* District 17: charged the lowest median rental rate
-* District 28: Seletar, Yio Chu Kang
-* District 17: Changi, Loyang, Pasir Ris
+* **District 17**: charged the lowest median rental rate
+* **District 28**: Seletar, Yio Chu Kang
+* **District 17**: Changi, Loyang, Pasir Ris
 
 In RCR, condo in District 7 charged the highest median rental rate, 
 
-* District 20: charged the lowest median rental rate
-* District 7: Beach Road, Bencoolen Road, Bugis, Rochor
-* District 20: Ang Mo Kio, Bishan, Braddell Road, Thomson
+* **District 20**: charged the lowest median rental rate
+* **District 7**: Beach Road, Bencoolen Road, Bugis, Rochor
+* **District 20**: Ang Mo Kio, Bishan, Braddell Road, Thomson
   
 
 ```{r, echo=FALSE,fig.width=10}
@@ -461,13 +461,11 @@ plot13
 
 Most condos are within 1-2km proximity from MRT, reaffirming the results in plot 11.
 
-In CCR, all districts has IQR less than 1km from MRT. 
+In **CCR**, all districts has IQR less than 1km from MRT. 
 
-* District 1: Boat Quay, Chinatown, Havelock Road, Marina Square, Raffles Place, Suntec City
+In **OCR**, only District 17 has IQR above the 1km from MRT. 
 
-In OCR, only District 17 has IQR above the 1km from MRT. 
-
-In RCR, District 4 (Keppel, Mount Faber, Sentosa, Telok Blangah) has the widest IQR.
+In **RCR**, District 4 (Keppel, Mount Faber, Sentosa, Telok Blangah) has the widest IQR.
 
 ```{r, echo=FALSE, fig.width = 10}
 
@@ -521,5 +519,9 @@ plot16 <- barplot(table(train_set$region),
 par(mfrow=c(1,1)) # Change back to 1 x 1
 
 ```
+
+## Data Modeling
+
+
 
 
