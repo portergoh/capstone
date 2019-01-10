@@ -9,7 +9,7 @@ the reference period.}
 data_from_ura(access_key)
 }
 \arguments{
-\item{key}{The access key included in the email upon}
+\item{access_key}{The access key included in the email upon}
 }
 \value{
 a tibble data frame with the json results

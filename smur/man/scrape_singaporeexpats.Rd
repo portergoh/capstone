@@ -3,19 +3,19 @@
 \name{scrape_singaporeexpats}
 \alias{scrape_singaporeexpats}
 \title{Perform webscraping for https://condo.singaporeexpats.com/%d/name/%s
-%d - page number
-%s - A-Z}
+page number
+A-Z}
 \usage{
 scrape_singaporeexpats(url)
 }
 \arguments{
-\item{url:}{string object of the targeted url}
+\item{url}{string object of the targeted url}
 }
 \value{
 a tibble containing condo name, district and age
 }
 \description{
 Perform webscraping for https://condo.singaporeexpats.com/%d/name/%s
-%d - page number
-%s - A-Z
+page number
+A-Z
 }

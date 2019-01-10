@@ -2,18 +2,13 @@
 % Please edit documentation in R/functions.R
 \name{plot_fit}
 \alias{plot_fit}
-\title{Generate 4x residual plots to test for homoscedasticity}
+\title{Residual plot}
 \usage{
-plot_fit(fit, save_to = "")
+plot_fit(fit)
 }
 \arguments{
-\item{fit}{lm model}
-
-\item{save_to}{path of the image to save}
+\item{fit}{lm object}
 }
 \description{
-Generate 4x residual plots to test for homoscedasticity
-}
-\examples{
-plot_fit (fit, save_to ="")
+Residual plot
 }

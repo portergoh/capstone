@@ -7,7 +7,7 @@
 get_onedaytoken(access_key)
 }
 \arguments{
-\item{key}{The access key included in the email upon
+\item{access_key}{The access key included in the email upon
 successful activation of account.}
 }
 \value{

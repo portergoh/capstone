@@ -8,6 +8,22 @@ output:
           fig_caption: yes
 ---
 
+<style>
+h1, .h1, h2, .h2, h3, .h3 {
+    margin-top: 30px;
+}
+p.caption {
+  font-size: 0.9em;
+  font-style: italic;
+  color: grey;
+  margin-right: 10%;
+  margin-left: 10%;  
+  text-align: center;
+}
+div.blue { background-color:#e6f0ff; border-radius: 5px; padding: 15px;}
+div.green { background-color:#E0F1D9; border-radius: 5px; padding: 15px;}
+</style>
+
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = FALSE, fig.cap = " ")
 ```
@@ -109,35 +125,43 @@ glimpse(test_set)
 ## Dependent variable - Median Rental Rate/sqft
 
 ### Observation using density plot
+
+<div class = "blue">
 Our dependent variable is the Median Rent Rate/sqft for private non-landed properties in Singapore. 
 
 Density plot provides a visual judgment about whether the distribution is bell shaped. We are seeing the rental rate to be rightly skewed.
 
 A log transformation maybe useful to normalise the distribution.
 
-```{r, echo=FALSE, fig.width=6}
+</div>
+<br>
+
+```{r, echo=FALSE, fig.width = 10, fig.cap = "Figure 6.1.1: Density plot of Median Rental Rate"}
 
 plot1 <- ggdensity(train_set$median_rent,
-          main="Density plot of Median Rental Rate/sqft",
-          xlab="Median Rental Rate/sqft")
+                             xlab="Median Rental Rate/sqft")
 
 plot1
 
 ```
 
-### Observation using qqplot
+### Observation using Q-Q plot
 
-As all the points doesn't fall approximately along the reference line, we cannot assume normality. This is further confirmed by the Shapiro-Wilk's test. From the output, the p-value < 0.05, implying that the distribution of the data are significantly different from normal distribution.
+```{r, echo=FALSE, fig.width = 10, fig.cap = "Figure 6.1.2: Q-Q plot of Median Rental Rate"}
 
-```{r, echo=FALSE, fig.width=6}
 ggqqplot(train_set$median_rent)
 shapiro.test(train_set$median_rent)
 ```
+
+<div class = "green">
+As all the points doesn't fall approximately along the reference line, we cannot assume normality. This is further confirmed by the Shapiro-Wilk's test. From the output, the p-value < 0.05, implying that the distribution of the data are significantly different from normal distribution.
+</div>
 
 ## Independent variable - Condo age
 
 ### Observation using scatter plot and regression
 
+<div class = "blue">
 Property age is often one of the important criteria for home hunters when they decide on whether to rent the place.
 
 As expected, we observed an inverse relationship between Median Rental rate and Condo age. We can see that as the property become older, the median rental rate drops.
@@ -151,8 +175,10 @@ We also plotted 3 regression lines using
 It appears that our regression line may fit better using curvilinear than a straight line. 
 There is more well balanced data points center around the curve than the straight line at the 40th year mark.
 
+</div>
+<br>
 
-```{r, echo=FALSE, fig.width=7}
+```{r, echo=FALSE, fig.width=10, fig.width = 10, fig.cap = "Figure 6.2.1: Median Rental Rate vs Age of Condominium"}
 
 age_params <- tibble(title = "Median Rental Rate vs Age of Condominium",
                      subtitle = "Is there a Relationship ?",
@@ -172,12 +198,23 @@ plot2
 
 ### using boxplot
 
+<div class = "blue">
 1st year condominium tend to command a premium in median rental rate. It could also be related to new condo which are pricier, therefore is able to charged a higher rental rates.
 
 Older condos, especially those more than 20 years, they are much cheaper to rent.
+</div>
+
+```{r, echo=FALSE, fig.width=10, fig.width = 10, fig.cap = "Figure 6.2.2: Median Rental Rate vs Age of Condominium"}
+
+plot3 <- train_set %>% boxplot_basic(median_rent ~ condo_age,
+                                     labs = age_params) 
 
 
-```{r, echo=FALSE, fig.width=7}
+```
+
+### using boxplot with Categorical age
+
+```{r, echo=FALSE, fig.width=10, fig.width = 10, fig.cap = "Figure 6.2.3: Median Rental Rate vs Age of Condominium" }
 
 # Transform the condo age into category
 train_set$condo_age_f <- train_set$condo_age %>%
@@ -190,30 +227,34 @@ res <- train_set %>%
   summarise(rent_rate=median(median_rent))
 
 
-plot3 <- train_set %>% boxplot_basic(median_rent ~ condo_age,
+plot4 <- train_set %>% boxplot_basic(median_rent ~ condo_age_f,
                                      labs = age_params) 
 
 res 
 ```
 
-We also see a pattern in terms of the median rental rate range, the fall turn steeper from the 10-20 year mark (average fall ~$0.5/sqft for every 5 years) and then slow down. Over the next 3 decades, the total fall is estimated about ~0.4/sqft.
+<div class = "blue">
+After breaking the age into decade, we can now observed better that the fall turn steeper from the 10-20 year mark (average fall ~$0.5/sqft for every 5 years) and then slow down. Over the next 3 decades, the total fall is estimated about only 0.4/sqft.
 
 *\* Outliers between age group 1-20 years maybe a concern and need to be reviewed using Cook's distance to check for influential points.*
 
+</div>
+
 ### Observations of Median Rental Rate contracts
 
+<div class = "blue">
 In terms of the rental contracts submitted to URA over a period of 3 years from (2015 - 2017), it seems that properties after 21 years old are less attractive to users, and therefore we see lesser contracts submitted, making the distribution right skewed.
 
+</div>
 
-```{r, echo=FALSE,fig.width=7}
-
+```{r, echo=FALSE,fig.width=10, fig.width = 10, fig.cap = "Figure 6.2.4: Median Rental Rate Contracts"}
+ 
 contract_params <- tibble(main = "Median Rental Rate Contracts",
                           xlab = "Age of Condominium",
                           ylab = "Count",
                           col  = "deepskyblue")
   
-                         
-plot4 <- barplot(table(train_set$condo_age),
+plot5 <- barplot(table(train_set$condo_age),
                  main = contract_params$main,
                  xlab = contract_params$xlab,
                  ylab = contract_params$ylab,
@@ -221,42 +262,46 @@ plot4 <- barplot(table(train_set$condo_age),
                  ylim = c(0,150),
                  cex.names =0.8)
 
-
-
 ```
-
 
 ### Condo age and Median Rental Rate with region perspective
 
+<div class = "blue">
 From the visual interpretation of this plot, we can see a distinctive pattern that properties located in CCR region command the highest median rent rate follow by RCR which is sandwiched in between CCR and OCR.
 
 It looks like the current zoning of districts into CCR, RCR and OCR is applicable for condo rental rates.
+</div>
+<br>
 
-    
-```{r, echo=FALSE,fig.width=7}
+```{r, echo=FALSE,fig.width=7, fig.width = 10, fig.cap = "Figure 6.2.5: Median Rent rate vs Age of Condominium by Region"}
 
 x <- "condo_age"
 y <- "median_rent"
 age_params$title = "Median Rent rate vs Age of Condominium by Region"
 
-plot5 <- train_set %>%
+plot6 <- train_set %>%
   ggplot_basic(var_x= x, var_y = y, labs=age_params) +
    geom_point(stat = "Identity", aes(col = region)) 
  
-plot5
+plot6
 ```
 
 ## Independent variable - proximity to MRT
 
 Next, let us look at how the proximity from MRT for a property may affect its rental rate. We feel that this too maybe an important factor that user will consider when deciding to rent on a property.
-  
+
 ### Observation using scatter plot and regression
 
+<div class = "blue">
 This plot seems to concur with the popular belief that if your property is located further away from MRT, it will become less attractive to users. However, some properties that are located more than 2.7 km away, appeared to have bucked the trend, suggesting that a curvilinear relationship may be a better fit.
 
+Our regression lines for both polynomial and loess method match closely.
 
+Lack of data points in the 2-3 km range may obscure or influence our analysis as we try to extrapolate our data points.
+</div>
+<br>
 
-```{r, echo=FALSE, fig.width = 7}
+```{r, echo=FALSE, fig.width = 10, fig.cap = "Figure 6.3.1: Median Rental Rate vs Distance from MRT"}
 
 # Data transformation to get the mrt distance
 train_set <- train_set %>%
@@ -271,30 +316,26 @@ mrt_params <- tibble(title="Median Rental Rate vs Distance from MRT",
 
 var_x <- "km"
 
-plot6 <- train_set %>% ggplot_scatter(var_x, 
+plot7 <- train_set %>% ggplot_scatter(var_x, 
                                       var_y, 
                                       labs  = mrt_params) +
                                       ylim(c(1,8))
 
-plot6
+plot7
 
 ```
 
-Our regression lines for both polynomial and loess method match closely.
-
-Lack of data points in the 2-3 km range may obscure or influence our analysis as we try to extrapolate our data points.
-
 ### Distribution of condo measured by proximity to MRT in each district
-  
+
+<div class="blue">
 An interesting observation, District 4 appeared to have the widest IQR in term of distance from MRT.
 
-* District 4 consists mainly of areas in Keppel, Mount Faber, Sentosa, Telok Blangah. 
+*- District 4 consists mainly of areas in Keppel, Mount Faber, Sentosa, Telok Blangah*
+</div>
 
+```{r,fig.width=10, fig.cap = "Figure 6.3.2: Distance from MRT vs District locations"}
 
-
-```{r,fig.width=7}
-
-plot7 <- boxplot(km ~ district, data = train_set,
+plot8 <- boxplot(km ~ district, data = train_set,
                  notch=FALSE, # Show confidence interval
                  varwidth=TRUE, # Show sample size
                  col="lightgreen",
@@ -307,69 +348,89 @@ quantile_val <- train_set %>%
                    select(km) %>%
                    quantile(c(0.25,1.0), na.rm = TRUE)
 
-abline(h = quantile_val[[1]], color = "darkgreen")
-abline(h = quantile_val[[2]], color = "darkgreen")
+abline(h = quantile_val[[1]])
+abline(h = quantile_val[[2]])
+
+```
+
+```{r, echo=TRUE}
 
 quantile_val   
 ```
 
+<div class = "green">
 In fact, 75% of the data points range widely between 0.7 - 3.3 km mark, indicating a very scattered distribution of the location of properties from MRT.
+</div>
 
 ### What happens if we single out district 4 only ?
 
+<div class = "blue">
 After filtering out the rest of the districts, we find that data points for district 4 are located primarily in the left and right hand side of the plot and there is much emptiness in the middle.  
+</div>
 
-```{r, echo=FALSE, fig.width = 10}
+```{r, echo=FALSE, fig.width = 10, fig.cap="Figure 6.3.3: Median Rental Rate vs Distance from MRT"}
 
 var_x <- "km"
 var_y <- "median_rent"
 
-plot8 <- train_set %>%
-  ggplot_basic(var_x, var_y, labs = mrt_params ) +
+
+plot9 <- train_set %>%
+  ggplot_basic(var_x, var_y, labs = mrt_params) +
   geom_point(stat = "Identity", aes(col = district)) +
   ylim(c(1.5,8))
  
-plot9 <- train_set %>%
+plot10 <- train_set %>%
   filter(district == "04") %>%
-  ggplot_basic(var_x, var_y, labs = mrt_params ) +
+  ggplot_basic(var_x, var_y, labs = mrt_params) +
   geom_point(stat = "Identity", col = "orange3") +
   ylim(c(1.5,8))
 
-grid.arrange(plot8, 
-             plot9, 
-             widths = c(2,1.6),
+plot9$labels$title <- waiver()
+plot9$labels$subtitle <- waiver()
+plot10$labels$title <- waiver()
+plot10$labels$subtitle <- waiver()
+
+grid.arrange(plot9, 
+             plot10, 
+             widths = c(2,1.55),
              ncol=2)
 
 ```
 
 ### Compare the scatterplot with and without district 4
-  
-A side to side comparison with our earlier scatterplot (plot6), we can now see that if we had taken out district 4, it may affect our decision on whether it being curvilinear or a straight line.
-    
-  
-```{r,echo=FALSE, fig.width = 10}
 
-plot10 <- train_set %>%
+<div class = "blue">
+A side to side comparison with our earlier scatterplot figure 6.3.1, we can now see that if we had taken out district 4, it may affect our decision on whether it being curvilinear or a straight line.
+</div>
+
+```{r,echo=FALSE, fig.width = 10, fig.cap = "Figure 6.3.4: Median Rental Rate vs Distance from MRT"}
+
+plot11 <- train_set %>%
            filter(district !="04") %>%
            ggplot_scatter(var_x, 
                           var_y, 
                           labs  = mrt_params) +
            ylim(c(1,8))
 
-grid.arrange(plot6, plot10, ncol=2)
+plot7$labels$title <- waiver()
+plot7$labels$subtitle <- waiver()
+plot11$labels$title <- waiver()
+plot11$labels$subtitle <- waiver()
+
+grid.arrange(plot7, plot11, ncol=2)
 
 ```
 
 ### Rental contracts count measure by proximity to MRT
-
+<div class = "blue">
 It seems that the rental contracts that is submitted to URA over a period of 3 years (2015 -2017) falls as the property become further away from MRT.
-
+</div>
   
-```{r, fig.width=7}
+```{r, fig.width=10, fig.cap="Figure 6.3.5: Median Rental rate contracts"}
 
 contract_params$xlab <- "Distance from MRT"
 
-plot11 <- barplot(table(train_set$km),
+plot12 <- barplot(table(train_set$km),
                   main = contract_params$main,
                   xlab = contract_params$xlab,
                   ylab = contract_params$ylab,
@@ -380,36 +441,40 @@ plot11 <- barplot(table(train_set$km),
 
 ### Condo distribution in each region measured by proximity from MRT
 
+<div class = "blue">
 Most of the condo in CCR are within 1km distance from MRT.
 
 Most of the condo in RCR and OCR are within 2km from MRT.
 
 Again, we see district 4 different from the rest, with a wide spread of properties distributed
 unevenly from MRT.
-
+</div>
+<br>
     
-```{r, fig.width=7}
+```{r, fig.width=10, fig.cap="Figure 6.3.6: Median Rent rate vs Distance from MRT by Region"}
 
 var_x <- "km"
 var_y <- "median_rent"
 mrt_params$title <- "Median Rent rate vs Distance from MRT by Region"
 
-plot12 <- train_set %>%
+plot13 <- train_set %>%
   ggplot_basic(var_x, var_y, labs = mrt_params ) +
   geom_point(stat = "Identity", aes(col = region)) 
 
-plot12
+plot13
 
 ```
 
 ## Independent variable - Districts
 
-### Is there a trend for Median Rental Rate in each district locations ?
+### Is there a trend for Median Rental Rate in each districts ?
 
 The median rental rate saw the greatest variation in CCR follow by RCR and OCR. Properties in OCR is most stable in their median rental rate across most districts.
+<br>
 
 #### Interesting facts on each region 
 
+<div class = "blue">
 In CCR, condo in District 2 charged the highest median rental rate, 
 
 * **District 10**: charged the lowest median rental rate
@@ -427,9 +492,10 @@ In RCR, condo in District 7 charged the highest median rental rate,
 * **District 20**: charged the lowest median rental rate
 * **District 7**: Beach Road, Bencoolen Road, Bugis, Rochor
 * **District 20**: Ang Mo Kio, Bishan, Braddell Road, Thomson
-  
+</div>
+<br>
 
-```{r, echo=FALSE,fig.width=10}
+```{r, echo=FALSE,fig.width=10,fig.cap="Figure 6.4.1: Median Rental Rates vs District Location of Condominium by Region"}
 
 var_x <- "district"
 var_y <- "median_rent"
@@ -444,65 +510,68 @@ district_params <- tibble(title = "Median Rental Rates vs District Location of C
 #  group_by(district) %>%
 #  summarise(rent_rate=median(median_rent))
 
-plot13 <- train_set %>% ggplot_basic(var_x,
+plot14 <- train_set %>% ggplot_basic(var_x,
                                      var_y,
                                      var_fill = fill_by,
                                      district_params) +
    
-                         geom_boxplot(stat = "boxplot", varwidth = TRUE) +
+                           geom_boxplot(stat = "boxplot", varwidth = TRUE) +
   
-                         facet_wrap(~region, scale = "free_x") 
+                           facet_wrap(~region, scale = "free_x") 
   
-plot13
+plot14
 
 ```
 
-### Another look from the perspecive of region/districts on Condominium proximity to MRT
+### View from the perspecive of region/districts for Condominium proximity to MRT
 
-Most condos are within 1-2km proximity from MRT, reaffirming the results in plot 11.
+Most condos are within 1-2 km from MRT, reaffirming the results in figure 6.3.6
 
+<div class = "blue">
 In **CCR**, all districts has IQR less than 1km from MRT. 
 
 In **OCR**, only District 17 has IQR above the 1km from MRT. 
 
 In **RCR**, District 4 (Keppel, Mount Faber, Sentosa, Telok Blangah) has the widest IQR.
-
-```{r, echo=FALSE, fig.width = 10}
+</div>
+<br>
+```{r, echo=FALSE, fig.width = 10, fig.cap="Figure 6.4.2: Condominium proximity to MRT in region/districts"}
 
 var_x <- "district"
 var_y <- "km"
 fill_by <- "region"
 district_params$title <- "Distance from MRT vs District Location of Condominium by Region"
-district_params$subtitle <- "Most properties located within 1km away from MRT"
+district_params$title <- "Most properties are located within 1km away from MRT"
 district_params$ylab  <- "Distance from MRT (in KM)"
 
-plot14 <- train_set %>% ggplot_basic(var_x = var_x,
+plot15 <- train_set %>% ggplot_basic(var_x = var_x,
                                      var_y = var_y,
                                      var_fill = fill_by,
                                      district_params) +
    
-                         geom_boxplot(stat = "boxplot", varwidth = TRUE) +
-                         geom_hline(aes(yintercept = 1), colour = "red", size = 0.5, linetype = "dashed") +
-                         facet_wrap(~region, scale = "free_x") 
+                          geom_boxplot(stat = "boxplot", varwidth = TRUE) +
+                          geom_hline(aes(yintercept = 1), colour = "red", size = 0.5, linetype = "dashed") +
+                          facet_wrap(~region, scale = "free_x") 
   
                        
 
-plot14
+plot15
 
 ```
 
 ### Rental contracts distribution in each region/districts
 
+<div class = "blue">
 We can see that even though the total number of Median rental contracts submitted to URA over a 3 year period (2015-2017) varies widely across different districts, in totality when group by different regions, they are actually quite close to each other.
-
-
-```{r,fig.width=10}
+</div>
+<br>
+```{r,fig.width=10, fig.align="center", fig.cap="Figure 6.4.3: Median rental contracts in each region/districts"}
   
 contract_params$xlab <- "District Number"
 
 par(mfrow=c(1,2)) # Change the panel layout to 1 x 2
 
-plot15 <- barplot(table(train_set$district),
+plot16 <- barplot(table(train_set$district),
                   main = contract_params$main,
                   xlab = contract_params$xlab,
                   ylab = contract_params$ylab,
@@ -510,7 +579,7 @@ plot15 <- barplot(table(train_set$district),
 
 contract_params$xlab <- "Region"
 
-plot16 <- barplot(table(train_set$region),
+plot17 <- barplot(table(train_set$region),
                   main = contract_params$main,
                   xlab = contract_params$xlab,
                   ylab = contract_params$ylab,
@@ -522,6 +591,84 @@ par(mfrow=c(1,1)) # Change back to 1 x 1
 
 ## Data Modeling
 
+### Preleminary test to check the assumptions of our model
+
+Before we begin our modeling, we will first check the correlation metrics between our dependent and explanatory variables.
+<br>
+<br>
+
+#### Pearson correlation test - median_rent vs condo_age
+
+```{r, echo=FALSE}
+
+cor_mr_age <- cor.test(train_set$median_rent,train_set$condo_age, 
+                method = "pearson")
+cor_mr_age
+
+```
+<div class="green">
+The p-value of the test is 2.2^{-16}, which is less than the significance level alpha = 0.05. We can conclude that median_rent and condo_age are significantly correlated with a correlation coefficient of -0.483.
+</div>
+<br>
+
+#### Pearson correlation test - median_rent vs km
+
+```{r,echo=FALSE,class.source="bg"}
+
+cor_mr_km <- cor.test(train_set$median_rent,train_set$km, 
+                method = "pearson")
+
+cor_mr_km 
+
+```
+
+<div class="green">
+The p-value of the test is 2.2^{-16}, which is less than the significance level alpha = 0.05. We can conclude that median_rent and km are significantly correlated with a correlation coefficient of -0.183.
+</div>
+<br>
+
+#### Pearson correlation test - condo_age vs km
+
+```{r}
+
+cor_age_km <- cor.test(train_set$condo_age,train_set$km, 
+                method = "pearson")
+cor_age_km
+```
+
+<div class="green">
+The p-value of the test is 0.46, which is more than the significance level alpha = 0.05. We can conclude that condo_age and km are not significantly correlated with a correlation coefficient of 0.015. 
+
+This also means that there would not have any multicollinearity issues since both our explanatory variables are independent.
+
+</div>
+<br>
+
+```{r,echo=FALSE}
+
+lm_model1 <- function(df){
+  lm(median_rent ~ condo_age + km, data=df)
+}
+
+fit1 <- lm_model1(train_set)
+
+```
 
 
+```{r, echo=FALSE}
+
+
+lm_model2 <- function(df){
+  lm(median_rent ~ poly(condo_age,2) + poly(km,2), data=df)
+}
+
+
+fit2 <- lm_model2(train_set)
+
+
+
+
+
+
+```
 

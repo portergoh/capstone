@@ -6,21 +6,18 @@
 \usage{
 
   get_condo_dataset(ura_access_key = "6117f3d4-81e2-4b3e-9ff9-2640045d2b5a",
-  save_to = "", crawl = F)
+  save_to = "", crawl = FALSE)
 }
 \arguments{
+\item{ura_access_key}{access key for URA data servivce API}
+
 \item{save_to}{path to save for the dataset}
 
 \item{crawl}{default to F, otherwise get the dataset from actual website}
-
-\item{url_access_key}{access key for URA data servivce API}
 }
 \value{
-: tibble object of the dataset
+tibble object of the dataset
 }
 \description{
 Data Collection from URA service API & singaporeexpats website
-}
-\examples{
-get_condo_dataset (ura_access_key, save_to = "", crawl = F)
 }

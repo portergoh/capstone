@@ -4,18 +4,18 @@
 \alias{scrape_singaporeexpats2}
 \title{Perform webscraping for
 https://www.singaporeexpats.com/singapore-property-pictures/photos-%s.htm
-%s: A-G, H-S, T-Z}
+A-G, H-S, T-Z}
 \usage{
 scrape_singaporeexpats2(url)
 }
 \arguments{
-\item{url:}{string object of the targeted url}
+\item{url}{string object of the targeted url}
 }
 \value{
-: A tibble containing condo name, district and age
+a tibble containing condo name, district and age
 }
 \description{
 Perform webscraping for
 https://www.singaporeexpats.com/singapore-property-pictures/photos-%s.htm
-%s: A-G, H-S, T-Z
+A-G, H-S, T-Z
 }
