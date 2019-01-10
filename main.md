@@ -1,18 +1,3 @@
-<style>
-h1, .h1, h2, .h2, h3, .h3 {
-    margin-top: 30px;
-}
-p.caption {
-  font-size: 0.9em;
-  font-style: italic;
-  color: grey;
-  margin-right: 10%;
-  margin-left: 10%;  
-  text-align: center;
-}
-div.blue { background-color:#e6f0ff; border-radius: 5px; padding: 15px;}
-div.green { background-color:#E0F1D9; border-radius: 5px; padding: 15px;}
-</style>
 Overview of the Project
 =======================
 
@@ -129,7 +114,7 @@ It appears that our regression line may fit better using curvilinear than a stra
 
 ![Figure 6.2.1: Median Rental Rate vs Age of Condominium](main_files/figure-markdown_github/unnamed-chunk-5-1.png)
 
-### using boxplot
+### Using boxplot
 
 1st year condominium tend to command a premium in median rental rate. It could also be related to new condo which are pricier, therefore is able to charged a higher rental rates.
 
@@ -137,7 +122,7 @@ Older condos, especially those more than 20 years, they are much cheaper to rent
 
 ![Figure 6.2.2: Median Rental Rate vs Age of Condominium](main_files/figure-markdown_github/unnamed-chunk-6-1.png)
 
-### using boxplot with Categorical age
+### Using boxplot with Categorical age
 
 ![Figure 6.2.3: Median Rental Rate vs Age of Condominium](main_files/figure-markdown_github/unnamed-chunk-7-1.png)
 
