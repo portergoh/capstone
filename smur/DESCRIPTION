@@ -15,5 +15,8 @@ Imports:
     tidyverse, 
     rvest, 
     httr, 
-    jsonlite
-  
+    jsonlite,
+    raster,
+    rgdal,
+    sp,
+    xml2

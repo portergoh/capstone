@@ -31,11 +31,12 @@ get_regiondistricts <- function(){
 #' @return a tibble containing condo name and TOP
 
 parse_nodecontent <- function(nodes) {
-  condo_name <- html_nodes(nodes,".title_link") %>% html_attr("title")
+  condo_name <- rvest::html_nodes(nodes,".title_link") %>%
+    rvest::html_attr("title")
 
-  top_year <- html_nodes(nodes,".listcol2") %>%
-    html_node(xpath="div[4]") %>%
-    html_text() %>%
+  top_year <- rvest::html_nodes(nodes,".listcol2") %>%
+    rvest::html_node(xpath="div[4]") %>%
+    rvest::html_text() %>%
     str_extract("\\d+$")
 
   return(tibble(condo_name,top_year))
@@ -52,10 +53,11 @@ parse_nodecontent <- function(nodes) {
 #' @return a tibble containing condo name and TOP
 
 parse_nodecontent2 <- function(nodes) {
-  condo_name <- html_nodes(nodes,".propertyname") %>%
-    html_text()
-  km_mrt <- html_nodes(nodes,".propertymrt") %>%
-    html_text()
+  condo_name <- rvest::html_nodes(nodes,".propertyname") %>%
+    rvest::html_text()
+
+  km_mrt <- rvest::html_nodes(nodes,".propertymrt") %>%
+    rvest::html_text()
 
   return(tibble(condo_name,km_mrt))
 }
@@ -69,14 +71,14 @@ parse_nodecontent2 <- function(nodes) {
 
 scrape_singaporeexpats <- function(url) {
   records_per_page <- 50
-  webpage <- read_html(url)
-  total_page <- html_text(html_node(webpage,".pageno"))
+  webpage <- xml2::read_html(url)
+  total_page <- rvest::html_text(rvest::html_node(webpage,".pageno"))
   total_page <- ceiling(as.numeric(total_page)/records_per_page)
 
   new_url <- str_replace(url,"1","%d")
   dataset <- 1:total_page %>%
     sprintf(new_url,.) %>%
-    map(~read_html(.x)) %>%
+    map(~ xml2::read_html(.x)) %>%
     map_df(~parse_nodecontent(.x))
 
   return (dataset)
@@ -93,9 +95,9 @@ scrape_singaporeexpats2 <- function(url) {
   base_list <- c("A-G", "H-S", "T-Z")
 
   dataset <- base_list %>%
-    map(~sprintf(url,.x)) %>%
-    map(~read_html(.x)) %>%
-    map(~html_nodes(.x, "#contents")) %>%
+    map(~ sprintf(url,.x)) %>%
+    map(~ xml2::read_html(.x)) %>%
+    map(~ rvest::html_nodes(.x, "#contents")) %>%
     map_df(~parse_nodecontent2(.x))
 
   return(dataset)
@@ -148,13 +150,15 @@ data_from_singaporeexpats <- function(){
 
 get_onedaytoken <- function(access_key){
   url <- "https://www.ura.gov.sg/uraDataService/insertNewToken.action"
-  response <- GET(url,
-                  add_headers(
-                    "Content-Type" = "application/json",
-                    "AccessKey" = access_key
+  response <- httr::GET(url,
+                        httr::add_headers(
+                          "Content-Type" = "application/json",
+                          "AccessKey" = access_key
                   ))
 
-  result <- fromJSON(content(response, as="text", encoding="utf-8"))
+  result <- jsonlite::fromJSON(httr::content(response,
+                                             as="text",
+                                             encoding="utf-8"))
   return(result[[1]])
 }
 
@@ -190,14 +194,17 @@ data_from_ura <- function(access_key){
   oneday_token <- get_onedaytoken(access_key)
   url <- "https://www.ura.gov.sg/uraDataService/invokeUraDS?service=PMI_Resi_Rental_Median"
 
-  response <- GET(url,
-                  add_headers(
-                    "Content-Type" = "application/json",
-                    "AccessKey" = access_key,
-                    "Token" = oneday_token
-                  ))
+  response <- httr::GET(url,
+                        httr::add_headers(
+                          "Content-Type" = "application/json",
+                          "AccessKey" = access_key,
+                          "Token" = oneday_token
+                       ))
 
-  result <- fromJSON(content(response, as="text",encoding="utf-8"))
+  result <- jsonlite::fromJSON(httr::content(response,
+                                             as="text",
+                                             encoding="utf-8"))
+
   result <- as_tibble(result[[1]]) %>%
     unnest() %>%
     select(condo_name = project,
@@ -265,9 +272,61 @@ get_condo_dataset <- function(ura_access_key = "6117f3d4-81e2-4b3e-9ff9-2640045d
       rename(median_rent = median) %>%
       filter(condo_age > 0)
 
+    # Get MRT distance using geospatial
+    myshapefile <- system.file("extdata",
+                               "TrainStationExit13102017.shp",
+                               package="smur")
+
+    print(myshapefile)
+    mrt_spatialpts_wsg84 <- data_from_geospatial(myshapefile)
+
+    condo_list <-  condo_dataset %>%
+      select(condo_name, x_coord, y_coord) %>%
+      distinct()
+
+    #glimpse(condo_list)
+    condo_spatialpts <- sp::SpatialPointsDataFrame(
+      coords = data.frame (x = condo_list$x_coord,
+                           y = condo_list$y_coord),
+      data = condo_list,
+      proj4string = sp::CRS("+init=epsg:3414"))
+
+    #glimpse(condo_spatialpts)
+
+    # To transform from one CRS to another:
+    condo_spatialpts_wsg84 <- sp::spTransform(condo_spatialpts,
+                                              sp::CRS("+init=epsg:4326"))
+    #glimpse(condo_spatialpts_wsg84)
+
+    # Find the distance from each point in "a "condo_spatialpts" to
+    # each point in "mrt_exit_shp" the results in a matrix.
+    results <- sp::spDists(mrt_spatialpts_wsg84,
+                           condo_spatialpts_wsg84,
+                           longlat=T)
+    #glimpse(results)
+
+    min_mrt_km <- as_tibble(results)
+    min_mrt_km <- min_mrt_km %>%
+      mutate_all(funs(min(.))) %>%
+      slice(1)
+
+    min_mrt_km <- t(min_mrt_km)
+    colnames(min_mrt_km) <- "mrt_dist"
+    #glimpse(min_mrt_km)
+
+    condo_list_km <- cbind(condo_list, min_mrt_km) %>%
+      mutate_at(vars(mrt_dist), funs(round(.,2)))
+
+    #glimpse(condo_list_km)
+    condo_dataset <- left_join(condo_dataset, condo_list_km)
+
   }else{
 
-    condo_dataset <- read.csv("https://raw.githubusercontent.com/portergoh/capstone/master/data/condo_dataset.csv",
+    condo_dataset_file <- system.file("extdata",
+                                      "condo_dataset.csv",
+                                       package="smur")
+
+    condo_dataset <- read.csv(condo_dataset_file,
                               stringsAsFactors = F,
                               colClasses = c("character",
                                              "factor",
@@ -289,53 +348,32 @@ get_condo_dataset <- function(ura_access_key = "6117f3d4-81e2-4b3e-9ff9-2640045d
   return(condo_dataset)
 }
 
-#' Load the require R packages and install them
-#' if they are missing from the system
+#' Data Collection from Geospatial
 #'
-#' @param requirePackages a vector containing the require packages
-#' @export
+#' Source:
+#' https://www.mytransport.sg/content/dam/datamall/datasets/Geospatial/TrainStation.zip
+#' @param myshapefile spatial data for MRT
+#' @return MRT spatial points df based on wsg84
 
-check_packages <- function (requiredPackages) {
-  for (p in requiredPackages){
-    if(!require(p,character.only = TRUE))
-      install.packages(p)
+data_from_geospatial <- function (myshapefile){
 
-    library(p,character.only = TRUE)
-  }
-}
+  mrt_exit_shp <- raster::shapefile(myshapefile)
 
-#' Wrapper for ggplot to include the basic attributes of a plot
-#'
-#' @param df a data.frame (or list) from which the variables
-#'           in formula should be taken.
-#' @param var_x aes mapping for x axis
-#' @param var_y aes mapping for y axis
-#' @param var_fill aes mapping for fill attribute
-#' @param labs tibble object that contains the ggplot attributes
-#' @return ggplot object
-#' @export
+  mrt_list <- as_tibble(mrt_exit_shp)
+  mrt_list <- mrt_list %>%
+    filter(grepl("MRT STATION", STN_NAME)) %>%
+    select(STN_NAME, EXIT_CODE, coords.x1, coords.x2)
 
-ggplot_basic <- function(data,
-                         var_x,
-                         var_y,
-                         var_fill=NULL,
-                         labs){
-  g1 <- ggplot(data,
-               aes_string(x = var_x,
-                          y = var_y,
-                          fill= var_fill)) +
+  mrt_spatialpts <- sp::SpatialPointsDataFrame(
+    coords = data.frame (x = mrt_list$coords.x1,
+                         y = mrt_list$coords.x2),
+                         data = mrt_list,
+                         proj4string = sp::CRS("+init=epsg:3414"))
 
-    labs(title = labs$title,
-         subtitle = labs$subtitle,
-         x = labs$xlab,
-         y = labs$ylab) +
-
-    theme_bw() +
-
-    theme(plot.title = element_text(hjust = 0.5),
-          plot.subtitle = element_text(hjust = 0.5))
-
-  return (g1)
+  mrt_spatialpts_wsg84 <- sp::spTransform(mrt_spatialpts,
+                                          sp::CRS("+init=epsg:4326"))
+  #glimpse(mrt_spatialpts_wsg84)
+  return (mrt_spatialpts_wsg84)
 }
 
 #' Residual plot
@@ -349,71 +387,41 @@ plot_fit <- function(fit){
   par(mar=c(2.5,3,3,2.5))
   plot(fit)
   par(mfrow=c(1,1)) # Change back to 1 x 1
+
 }
 
-#' Scatter plot with regression lines using ggplot
+#' Special Gift for Your Statistical Inference using Regression
 #'
-#' @param df a data.frame (or list) from which the variables
-#'           in formula should be taken.
-#' @param var_x aes mapping for x axis
-#' @param var_y aes mapping for y axis
-#' @param labs tibble object that contains the ggplot attributes
+#' @param my_model_estimation your regression model object
+#' @param mydigit round off decimal places
 #' @export
 
-ggplot_scatter <- function(data,
-                           var_x,
-                           var_y,
-                           labs){
-
-  s1 <- ggplot_basic(data, var_x, var_y, labs=labs) +
-
-          geom_point(alpha = 1/4,
-                     position='jitter') +
-
-          scale_colour_manual(name="lines",
-                              breaks = c("lm",
-                                         "lm - poly(x,2)",
-                                         "loess"),
-
-                              values = c("deepskyblue",
-                                         "red",
-                                         "darkgreen"))
-
-  s2 <- s1 +  geom_smooth(method = lm,
-                          formula = y ~ x,
-                          aes(colour = "lm", group = 1), size = 1, se = FALSE)
-
-  s3 <- s2 + geom_smooth(method = lm,
-                         formula = y ~ poly(x, 2),
-                         aes(colour = "lm - poly(x,2)", group = 1), size = 1, se = FALSE)
-
-  s4 <- s3 + geom_smooth(method = loess,
-                         formula = y ~ x,
-                         aes(colour = "loess", group = 1), size = 1, se = FALSE)
-
-  s4
+OLS_summary_function <- function(my_model_estimation, mydigit){
+  mycoefs = tidy(my_model_estimation) %>%
+    mutate(
+      est2=format(round(estimate, mydigit),mydigit),
+      se2=format(round(std.error, mydigit),mydigit),
+      mystars=cut(p.value,c(0,0.001,0.01,0.05,0.10,1),
+                  c("***","**","*","+",""),right=F),
+      report=str_c(" ",est2,mystars,"\n(",se2,")",sep="")
+    ) %>% select(term,report)
+  myGOF=glance(my_model_estimation) %>%
+    mutate_all(
+      funs(round(.,mydigit))
+    ) %>%
+    mutate(
+      mystars=cut(p.value,c(0,0.001,0.01,0.05,0.10,1),
+                  c("***","**","*","+",""),right=F),
+      model_dfs = str_c("(",(df-1),", ",df.residual,")"),
+      model_F = str_c(statistic,mystars),
+      R2=format(round(r.squared,mydigit),mydigit),
+      adjR2=format(round(adj.r.squared,mydigit),mydigit)
+    ) %>% select(model_F, model_dfs, R2, adjR2) %>%
+    gather(key=term,value=report)
+  mytable=bind_rows(mycoefs,myGOF) %>%
+    mutate(sortid=row_number()) %>%
+    select(sortid,term,report) %>%
+    mutate_at(vars(2:3),funs(as.character(.)))
+  mytable
 }
 
-#' Basic wrapper function for boxplot
-#'
-#' @param df a data.frame (or list) from which the variables
-#'           in formula should be taken.
-#' @param formula a formula, such as y ~ grp, where y is a numeric vector of data
-#'                values to be split into groups according to the
-#'                grouping variable grp (usually a factor)
-#' @param labs tibble object that contains the boxplot attributes
-#' @export
-
-boxplot_basic <- function(df,
-                          formula,
-                          labs){
-
-    boxplot(formula, data = df,
-            notch=FALSE, # Show confidence interval
-            varwidth=TRUE, # Show sample size
-            col  = "deepskyblue",
-            main = labs$title,
-            xlab = labs$xlab,
-            ylab = labs$ylab)
-
-}
