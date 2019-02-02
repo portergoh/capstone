@@ -338,6 +338,7 @@ get_condo_dataset <- function(ura_access_key = "6117f3d4-81e2-4b3e-9ff9-2640045d
                                              "character",
                                              "factor",
                                              "character",
+                                             "numeric",
                                              "numeric"))
   }
 
