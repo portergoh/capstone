@@ -1,0 +1,1252 @@
+---
+title: "Data Analytics Specialist R Certification Program"
+author: "Brian Sum & Goh Khee Teck"
+date: "`r Sys.Date()`"
+output: 
+  bookdown::html_document2:
+    highlight: pygments
+    theme: flatly
+    number_sections: true
+    df_print: paged
+    fig_caption: yes
+    toc: yes
+    toc_float: yes
+---
+
+<style>
+
+body{ /* Normal  */
+  font-size: 15px;
+}
+  
+h1, .h1, h2, .h2, h3, .h3 {
+  margin-top: 20px;
+}
+
+h1 { /* Header 1 */
+  font-size: 26px;
+}
+
+h2 { /* Header 2 */
+  font-size: 20px;
+  color: DarkBlue;
+}
+
+h3 { /* Header 3 */
+  font-size: 18px;
+  color: DarkBlue;
+}
+
+h4 { /* Header 4 */
+  font-size: 16px;
+  color: DarkBlue;
+}
+
+.table{
+  width:auto;
+  font-size: 13px;
+}
+
+div.blue { background-color:#e6f0ff; border-radius: 5px; padding: 15px;}
+div.green { background-color:#E0F1D9; border-radius: 5px; padding: 15px;}
+</style>
+
+# Problem Statements
+
+For living or staying in Singapore, a major expenditure item for most people is the expenditure on residential properties. Majority of Singaporean and permanent residents owned and stayed in non-landed residential properties comprising of HDB developed housing units or privately developed residential properties funded by their monthly mortgage instalment payment. 
+
+There is also a significant number of Singaporean, permanent residents and foreigners who arrived in Singapore for employments, staying in rented residential properties: HDB or private. 
+
+It is widely acknowledged that the rental price rate per square feet (sq.ft) is largely driven by the location of the property, and to certain, the economic condition of Singapore which influence the demand (e.g. inflow of foreigners into the country for employment) and supply (e.g. vacancy and newly developed unit available for let) of the private residential units for rental market. However, the expectation of the rental price is usually based on the recently transacted rental price of neighboring apartments.
+
+## Project's Objective
+
+Amongst the various driving forces of the rental rate for private residential property, we would like to establish some useful metrics that could help to provide a measure for the expected rental rate in different locations. These analysis results can be used as benchmark information for house hunters during their search through the internet listing to rent their ideal home.
+
+We will explore the relationship of non-landed private residential properties rental rates using these 3 metrices to build our model.
+
+* Age of the properties derived from the TOP year
+* Location of the properties based on District and Region
+* Distance from MRT stations.
+
+# Dataset(s)
+
+Source of data for private residential properties’ rental transactions is obtained from Urban Redevelopment Authority (“URA”) website. URA publishes URA related data for public use and is available for download via API data service. The data service provides past 36 months rental transactions data with rental contracts submitted to IRAS for Stamp Duty assessment in JSON format. 
+
+* https://www.ura.gov.sg/maps/api/private-residential-properties-rental-contract
+
+Data for the private residential properties’ TOP (by year) and MRT proximity is obtained via web scrapping from the SingaporeExpats.com website and mytransport.sg:
+
+* https://condo.singaporeexpats.com
+* https://www.singaporeexpats.com/singapore-property-pictures/photos-A-G.htm
+* https://www.mytransport.sg/content/dam/datamall/datasets/Geospatial/TrainStation.zip
+
+## Data Collection
+All web scaping routines are consolidated into smur package for easy access in this capstone project.
+
+R source code is also available in github for reference
+
+* https://github.com/portergoh/capstone
+
+# Import
+
+```{r setup, echo=TRUE, warning=FALSE, message=FALSE}
+
+knitr::opts_chunk$set(fig.width=10, 
+                      fig.align='center', 
+                      echo=FALSE)
+
+# Set your working directory - Pls change it
+setwd("/Users/kheeteck/data/gcs/dasr")
+
+if (!require("pacman")) install.packages("pacman")
+
+# Load inital packages and install them if necessary
+p_load(devtools,bookdown,tidyverse,knitr,modelr,scatterplot3d,
+       gifski,ggpubr,jtools,broom,huxtable,lme4,sjPlot,
+       gridExtra,lattice,DHARMa,rsq,summarytools,GGally)
+
+# Install our custom built smur package which contains the condo dataset.
+# Data collection routines are packed into smur package for easy access 
+install_github("portergoh/capstone/smur")
+library(smur)
+theme_set(theme_bw())
+
+```
+
+# Tidy & Transform
+
+## Partition dataset
+
+We will split our main dataset (3,128) into 2 groups, 
+
+* training (2,346)
+* testing (782)
+
+First, we choose an arbitary seed number as the starting point to be used in the generation of a sequence of random numbers.
+
+Training sample is used for evaluating our models during analysis
+and the test set will be used to validate and cross check against the effectiveness and accuracy of our chosen model.
+
+```{r, echo=TRUE}
+
+set.seed(123)
+
+# Retrieve our condo dataset from smur
+condo_dataset <- get_condo_dataset()
+
+# Split between train and test set
+condo_dataset <- condo_dataset %>% mutate(id = 1:nrow(condo_dataset))
+train_set <- sample_frac(condo_dataset, .75)
+test_set <- anti_join(condo_dataset, train_set, by = 'id')
+
+```
+
+<div class = "green">
+$\checkmark$ Please ensure that you have provided the same seed number in order to obtain the same result everytime you run your analysis.*
+</div>
+
+## Transform
+
+```{r, echo=TRUE}
+
+# Create a dataframe with each condo mean value
+cluster_df_grp <- train_set %>%
+  group_by(condo_name, district, region, x_coord, y_coord) %>%
+  summarise(avg_rent = mean(median_rent),
+            avg_age = mean(condo_age),
+            avg_mrt_dist = mean(mrt_dist)) %>%
+  as_tibble()
+
+#glimpse(cluster_df_grp)
+
+# Scalling and Centering of numeric variables 
+cluster_df <- cluster_df_grp %>%
+  select(avg_rent, x_coord, y_coord) %>%
+  mutate_all(list(scale))
+
+#glimpse(cluster_df)
+
+# Transform the mrt distance into category
+train_set$mrt_dist_f <- train_set$mrt_dist %>%
+  cut(.,breaks=c(0,0.5,1.0,1.5,2.0,Inf),
+               c("0.5","1.0","1.5","2.0",">2.0")) %>%
+        as.factor()
+
+test_set$mrt_dist_f <- test_set$mrt_dist %>%
+  cut(.,breaks=c(0,0.5,1.0,1.5,2.0,Inf),
+               c("0.5","1.0","1.5","2.0",">2.0")) %>%
+        as.factor()
+
+# Transform the condo age into category
+train_set$condo_age_f <- train_set$condo_age %>%
+  cut(.,breaks=c(0,5,10,15,20,25,30,35,40,45,Inf),
+               c("1-5","6-10","11-15","16-20","21-25","26-30","31-35","36-40","41-45",">45")) %>%
+        as.factor()
+
+# Mean Centering 
+train_set$median_rent_c <- scale(train_set$median_rent, scale = FALSE)
+train_set$condo_age_c   <- scale(train_set$condo_age, scale = FALSE)
+
+```
+
+# Data visualisation
+
+## Exploratory Analysis
+
+We could see that the mean of all our 3 variables are higher than its median value, suggesting that our data is skewed to the right. The more pronounced being mrt distance which has a high kurtosis value of 5.42
+
+```{r, results="asis", echo=TRUE}
+
+train_set %>%
+  select(median_rent,condo_age,mrt_dist) %>%
+  descr(style="rmarkdown",round.digits=2, omit.headings=TRUE,
+        stats = c("mean","med","sd","min","max","skewness","kurtosis"))
+
+```
+
+GGpair plot confirmed our findings as we can see from the density plot that all our three variables are rightly skewed. The scatter plot between average condo age and our dependent variable - rental rate shows a distinct inverse relationship and a negative correlation value of -0.483
+
+Between mrt distance and rental rate, we can also observed a negative relationship with a correlation value of -0.194
+
+```{r, ggpair-plot, fig.cap="Diagnostic plot of each variable by itself and of their relationship to each other.", echo=TRUE}
+
+train_set %>%
+    ggpairs(columns=c(7,11,12))
+
+```
+
+## 3D scatter plot
+
+We use the scatter 3D plot to allow us to visualise our variables better.
+Our dataset is quite unbalanced for each group of condos categorized by its proximity to MRT. Not much data points for level from 2km onwards.
+
+We observed a general trend that as condo ages, the rental rate tend to fall in almost all levels except those > 2km.
+
+Similarly, for condo located further away from MRT, the rental rate drops.
+
+
+```{r, fig.cap="3D scatter plot between Age of Condominium and Proximity to MRT on rental rate effects", fig.show='animate', animation.hook='gifski', interval=0.3, echo=TRUE}
+
+colors <- c("red","deepskyblue4","darkgreen","purple","orange")
+colors <- colors[as.numeric(train_set$mrt_dist_f)]
+
+frames <- 90
+#loop through plots
+for(i in 45:frames){
+  scatterplot3d(train_set$mrt_dist_f, 
+                train_set$condo_age,
+                train_set$median_rent, 
+                angle = i, 
+                pch = 10, 
+                type = "h",
+                color = colors,
+                cex.symbols=0.5,
+                main=paste("Angle", i),
+                xlab = "MRT distance", 
+                x.ticklabs = c("0.5","1.0","1.5","2.0",">2.0"),
+                ylab = "Condo Age",
+                zlab = "Median Rent rate(sqft)")
+}
+                          
+```
+
+## Age of Condominium
+We could see that there is an inverse relationship between the median rental rate and age of condo during the first 15 years. 
+
+Rental Rate remains relatively unchanged in the subsequent decade and it starts to buck the inverse trend during the period 26-30th year age.
+
+The mean for each categorical age till the 25th year is higher than the median value which probably explained why the data is slightly skewing to the right in the earlier density plot in \@ref(fig:ggpair-plot)
+
+```{r, echo=TRUE}
+
+table(train_set$condo_age_f)
+
+```
+
+```{r, warning=FALSE,message=FALSE, fig.cap="Boxplot of Median Rental Rate/sqft vs Age of Condominium"}
+
+train_set %>% 
+  ggplot(aes(x=condo_age_f, 
+             y=median_rent,
+             group_by(condo_age_f))) +
+  
+  geom_boxplot(varwidth = TRUE, fill = "white", notch = FALSE) +
+  
+  stat_summary(fun.data = mean_cl_boot, geom = "errorbar", colour = "red") + 
+  
+  stat_summary(fun.y = mean, geom = "point", colour = "red") +
+  
+  labs(x="Age of Condominium", 
+       y="Median Rental Rate/sqft",
+       caption = "Source: Urban Redevelopment Authority (URA)") +
+  
+  theme(legend.position = "none",
+        axis.text = element_text(size = rel(.90)),
+        plot.title = element_text(face = "bold", hjust = 0.5),
+        plot.subtitle = element_text(hjust = 0.5)) +
+
+  annotate("text", 
+           x = "26-30", 
+           y = 4.5, 
+           label = "Seems to buck the trend !", 
+           angle=330, 
+           size=3, 
+           colour='deepskyblue4')
+  
+```
+
+## MRT distance
+
+This plot seems to concur with the popular belief that if your property is located further away from MRT, it will become less attractive to users. However, some properties that are located more than 2 km away, appeared to have bucked the trend.
+
+Again, we are seeing the mean value to be higher than the median within the 2km MRT radius, which suggests that the distribution is skewing to the right.
+
+
+```{r, echo=TRUE}
+
+table(train_set$mrt_dist_f)
+
+```
+
+```{r, fig.cap="Boxplot of Median Rental Rate/sqft vs MRT distance"}
+
+train_set %>% 
+  ggplot(aes(x=mrt_dist_f, 
+             y=median_rent, 
+             group_by(mrt_dist_f))) +
+  
+  geom_boxplot(varwidth = TRUE, fill = "white", notch = FALSE) +
+  stat_summary(fun.data = mean_cl_boot, geom = "errorbar", colour = "red") + 
+  stat_summary(fun.y = mean, geom = "point", colour = "red") +
+  labs(x="MRT distance (km)", 
+       y="Median Rental Rate/sqft",
+       caption = "Source: Urban Redevelopment Authority (URA)") +
+  theme(legend.position = "none",
+        axis.text = element_text(size = rel(.90)),
+        plot.title = element_text(face = "bold", hjust = 0.5),
+        plot.subtitle = element_text(hjust = 0.5)) +
+  annotate("text", 
+           x = ">2.0", 
+           y = 4.9, 
+           label = "Seems to buck the trend !", 
+           angle=330, 
+           size=3, 
+           colour='deepskyblue4')
+
+```
+
+## Regions/Districts
+
+### Boxplot between Regions & Districts
+
+In this boxplot, we could see much variability of rental rates between each regions. It looks more pronounced between CCR and OCR - No overlap of the confidence intervals between CCR and OCR
+
+Within districts, the differences appeared to be more significant in CCR and RCR.
+There is less variability in OCR as indicated by their overlapping confidence intervals in most districts.
+
+```{r, echo=TRUE, fig.cap="Median Rental Rates vs District Location of Condominium by Region"}
+
+train_set %>%
+  ggplot(aes(x = district, y = median_rent, fill = region)) + 
+  geom_boxplot(stat = "boxplot", varwidth = TRUE, notch = FALSE) +
+  stat_summary(fun.data = mean_cl_boot, geom = "errorbar", colour = "red") +
+  stat_summary(fun.y = mean, geom = "point", colour = "red") +
+  labs(x = "District Location",
+       y = "Median Rental Rate/sqft") +
+  facet_wrap(~region, scale = "free_x") +
+  theme(legend.position = "none",
+        axis.text = element_text(size = rel(.90)),
+        plot.title = element_text(face = "bold", hjust = 0.5),
+        plot.subtitle = element_text(hjust = 0.5)) 
+ 
+```
+
+### ANOVA Test of Median Rent Rate between Regions
+
+As the p-value is less than the significance level 0.05, we can conclude that there are significant differences in regions, but between which regions? 
+
+In one-way ANOVA test, a significant p-value indicates that some of the group means are different, but we don’t know which pairs of groups are different. 
+
+Tukey multiple pairwise-comparisons allow us to perform multiple pairwise-comparison, to determine if the mean difference between specific pairs of group are statistically significant.
+
+```{r, echo=TRUE}
+
+# aov() is a command for Analysis of Variance. 
+# It takes the form of outcome ~ predictor. 
+aov_rent_region <- aov(median_rent_c ~ region, data = train_set)
+
+kable(tidy(aov_rent_region))
+
+```
+
+#### TukeyHSD plot between regions
+
+We could see from this plot that each regions show signficant differences in their mean rental rate as none of the lines crosses the zero vertical.
+
+```{r, fig.cap="TukeyHSD plot between regions"}
+
+tukeyhsd_region <- TukeyHSD(aov_rent_region, ordered = FALSE)
+plot (tukeyhsd_region, cex.axis = 0.6)
+
+```
+
+### ANOVA Test of Median Rent Rate within CCR Region
+
+```{r, echo=FALSE}
+
+train_set_ccr <- filter(train_set, region == "CCR")
+
+train_set_ccr$district <- ordered(train_set_ccr$district)
+#levels(train_set_ccr$district)
+
+district_summary_ccr <- group_by(train_set_ccr, district) %>%
+  summarise(
+    count = n(),
+    mean = mean(median_rent, na.rm = TRUE),
+    sd = sd(median_rent, na.rm = TRUE)
+  )
+
+```
+
+As the p-value is less than the significance level 0.05, we can conclude that there are significant differences of rental rates within the CCR region.
+
+```{r, echo=TRUE}
+
+aov_rent_ccr <- aov(median_rent_c ~ district, data = train_set_ccr)
+kable(tidy(aov_rent_ccr), digits=2)
+
+```
+
+From the TuykeyHSD results, we can see that 8 pair out of the 10 has signficiant mean differences.
+
+```{r, echo=TRUE}
+
+tukeyhsd_ccr <- TukeyHSD(aov_rent_ccr, which = "district", ordered = FALSE)
+kable(tidy(tukeyhsd_ccr),digits=2)
+
+```
+
+```{r,echo=FALSE}
+
+tukeyhsd_ccr_df <- tukeyhsd_ccr %>%
+                    tidy() %>%
+                    as_tibble()
+#tukeyhsd_ccr_df
+#count(tukeyhsd_ccr_df)
+
+## Filtering the TUKEYHSD results to look for pairs with p-value <= 0.05
+tukeyhsd_ccr_df_res <- tukeyhsd_ccr_df %>%
+  filter(adj.p.value <= .05)
+
+```
+
+#### TukeyHSD plot between districts in region CCR
+
+From the plot below, we could see that only 2 district pair "02-01" and "09-01" crosses the zero line mark.
+
+```{r, fig.height=7, fig.cap="TukeyHSD plot between districts in CCR"}
+
+## diff: difference between means of the two groups
+## lwr, upr: the lower and the upper end point of the 
+##            confidence interval at 95% (default)
+## p adj: p-value after adjustment for the multiple comparisons.
+
+plot (tukeyhsd_ccr, cex.axis = 0.7)
+
+```
+
+### ANOVA Test of Median Rent Rate within OCR Region
+
+```{r,echo=FALSE}
+
+train_set_ocr <- filter(train_set, region == "OCR")
+
+train_set_ocr$district <- ordered(train_set_ocr$district)
+#levels(train_set_ocr$district)
+
+district_summary_ocr <- group_by(train_set_ocr, district) %>%
+  summarise(
+    count = n(),
+    mean = mean(median_rent, na.rm = TRUE),
+    sd = sd(median_rent, na.rm = TRUE)
+  )
+
+#district_summary_ocr
+
+```
+
+```{r, echo=TRUE}
+
+aov_rent_ocr <- aov(median_rent_c ~ district, data = train_set_ocr)
+kable(tidy(aov_rent_ocr), digits=2)
+
+```
+
+From the TuykeyHSD results, we could see 20 out of the 55 pairs having a signficiant mean differences in their rental rates.
+
+```{r, echo=TRUE}
+
+tukeyhsd_ocr <- TukeyHSD(aov_rent_ocr, which = "district", ordered = FALSE)
+
+```
+
+```{r, echo=FALSE}
+
+tukeyhsd_ocr_df <- tukeyhsd_ocr %>%
+  tidy() %>%
+  as_tibble()
+
+#tukeyhsd_ocr_df
+#count(tukeyhsd_ocr_df)
+
+## Filtering the TUKEYHSD results to look for pairs with p-value <= 0.05
+tukeyhsd_ocr_df_res <- tukeyhsd_ocr_df %>%
+  filter(adj.p.value <= .05)
+
+```
+
+```{r, echo=TRUE}
+
+kable(tukeyhsd_ocr_df_res , digits=2)
+
+```
+
+#### TukeyHSD plot between districts in region OCR
+
+```{r, fig.height=7, fig.cap="TukeyHSD plot between districts in region OCR", fig.height=8}
+
+## diff: difference between means of the two groups
+## lwr, upr: the lower and the upper end point of the 
+##            confidence interval at 95% (default)
+## p adj: p-value after adjustment for the multiple comparisons.
+
+plot (tukeyhsd_ocr, cex.axis = 0.6)
+
+```
+
+### ANOVA Test of Median Rent Rate within RCR Region
+
+```{r, echo=FALSE}
+
+train_set_rcr <- filter(train_set, region == "RCR")
+
+train_set_rcr$district <- ordered(train_set_rcr$district)
+#levels(train_set_rcr$district)
+
+district_summary_rcr <- group_by(train_set_rcr, district) %>%
+  summarise(
+    count = n(),
+    mean = mean(median_rent, na.rm = TRUE),
+    sd = sd(median_rent, na.rm = TRUE)
+  )
+#district_summary_rcr
+
+```
+
+p-value is less than the significance level 0.05, we can conclude that there are significant differences of rental rates within the RCR region.
+
+```{r., echo=TRUE}
+
+aov_rent_rcr <- aov(median_rent ~ district, data = train_set_rcr)
+kable(tidy(aov_rent_rcr), digits=2)
+
+```
+
+
+```{r,echo=TRUE}
+
+tukeyhsd_rcr <- TukeyHSD(aov_rent_rcr, which = "district", ordered = FALSE)
+
+```
+
+```{r, echo=FALSE}
+
+tukeyhsd_rcr_df <- tukeyhsd_rcr %>%
+  tidy() %>%
+  as_tibble()
+
+#tukeyhsd_rcr_df
+#count(tukeyhsd_rcr_df)
+
+## Filtering the TUKEYHSD results to look for pairs with p-value <= 0.05
+tukeyhsd_rcr_df_res <- tukeyhsd_rcr_df %>%
+  filter(adj.p.value <= .05)
+
+```
+
+From the TuykeyHSD results, we observed 25 out of the 45 pairs having a signficiant mean differences in their rental rates.
+
+```{r, echo=TRUE}
+
+kable(tukeyhsd_rcr_df_res, digits=2)
+
+```
+
+#### TukeyHSD plot between districts in region RCR
+
+```{r, echp=TRUE, fig.height=8, fig.cap="TukeyHSD plot between districts in region RCR"}
+
+## diff: difference between means of the two groups
+## lwr, upr: the lower and the upper end point of the 
+##            confidence interval at 95% (default)
+## p adj: p-value after adjustment for the multiple comparisons.
+
+plot (tukeyhsd_rcr, cex.axis = 0.6)
+
+```
+
+### Summary of Results
+
+We could see that our one-way ANOVA tests is aligned with our data visualisation, that between each region, there are differences in their mean rental rate.
+
+Our TukeyHSD results also show differences between multiple pairwise districts in each region. 
+
+We would therefore need to take into account of these variability when we start our modeling.
+
+# Model
+
+## Multiple Linear Regression
+
+We will begin with a simple model of just 1 explanatory variable, condo_age and fit a linear regression model over "pooled" data to check the effect of condo aging on median rent rate.
+
+```{r, echo=FALSE, fig.cap = "Scatter plot of Median Rental Rate/sqft vs Age of Condominium"}
+
+pl <- ggplot(data=train_set) + 
+ 
+  geom_point(aes(x=condo_age,
+                 y=median_rent), 
+             position = 'jitter',
+             alpha = 0.3, 
+             size = 1) +
+  
+  labs(x="Age of Condominium", 
+       y="Median Rental Rate/sqft",
+       caption = "Source: Urban Redevelopment Authority (URA)") +
+  
+  theme(axis.text = element_text(size = rel(.90)),
+        plot.title = element_text(face = "bold", hjust = 0.5),
+        plot.subtitle = element_text(hjust = 0.5)) 
+  
+```
+<br>
+Let’s plot the predicted median rental rate together with the observed value.
+
+```{r, echo = TRUE, fig.cap = "Scatter plot of Median Rental Rate/sqft vs Age of Condominium with regression line"}
+
+pooled_model <- lm(median_rent ~ condo_age, data = train_set)
+pl + geom_line(aes(x=condo_age,
+                   y=fitted(pooled_model)),
+               col="darkgreen",
+               size=1)
+
+```
+<br>
+In this simple regression, we see that for every one year increase in the condo age, we expect to see the rental rate fall by 0.06
+
+The intercept of 3.44 is the mean centered of the median rental rate when the rest of the predictor coefficients are zero.
+
+
+```{r, echo=TRUE}
+
+summ(pooled_model, center=TRUE, confint=TRUE)
+
+```
+<br>
+Unfortunately, this is not a great model since Adj. R² of 0.23 indicates that only 23% of the variance could be explained by this simple model.
+
+Let's try to log transform the target/outcome variable. This will make the effects multiplicative rather than additive.
+
+```{r, echo=TRUE}
+
+# Create pooled linear model and predictions
+log_pooled_model <- lm(log(median_rent) ~ condo_age, train_set)
+summ(log_pooled_model, confint=TRUE)
+
+```
+<br>
+If we plot the log transformed model, we will get slightly different fit (regression line).
+
+```{r, echo=TRUE, fig.cap = "Comparsion of regression lines between pooled and log pooled model"}
+
+# un-log using exponential
+logPooledPredictions <- exp(fitted(log_pooled_model))
+
+pl + geom_line(aes(x=condo_age,
+                   y=fitted(pooled_model),
+                   color="pooled"), 
+                   size=1) +
+  
+     geom_line(aes(x=condo_age,
+                   y=logPooledPredictions,
+                   color="log_pooled"), 
+                   size=1) +
+  
+     scale_colour_manual(name = "model",
+                         labels = c("pooled", "log_pooled"),
+                         values = c("darkgreen", "orange")) +
+     annotate("text", 
+               x = 48, 
+               y = 2.2, 
+               label = "italic(R) ^ 2 == 0.23",
+               parse = TRUE) + 
+  
+     annotate("text", 
+               x = 48, 
+               y = 1.4, 
+               label = "italic(R) ^ 2 == 0.25",
+               parse = TRUE)
+  
+```
+
+<br>
+Both of our pooled models are not very good at explaining variance. 
+
+Let's continue to build our model by introducing another explanatory variable - MRT distance and see if it improves the fit. 
+
+We will use the generalized linear model framework instead of manually having to log transform our outcome variable since glm with Gamma family and log link feature could provide better interpretability.
+
+When you put a factor variable into a regression, you’re allowing a different intercept at every level of the factor. 
+
+Average rental rate = Intercept(based on mrt's distance to condo) + β
+ * condo's age
+
+We can rewrite this more succinctly as:
+
+$$ 
+\begin{align}
+y = Intercept_{mrt\_dist\_condo}+ β × age
+\end{align}
+$$ 
+Essentially, we want to model our data as having the same slope governing how rental rate changes with condo's age, but potentially different intercepts. 
+
+```{r,echo=TRUE, results="asis"}
+
+glm1 <- glm(median_rent ~ condo_age + mrt_dist_f, 
+            family = Gamma(link = "log"),
+            data = train_set)
+
+glm1_intercepts <- c(coef(glm1)["(Intercept)"],
+                     coef(glm1)["(Intercept)"] + coef(glm1)["mrt_dist_f1.0"],
+                     coef(glm1)["(Intercept)"] + coef(glm1)["mrt_dist_f1.5"],
+                     coef(glm1)["(Intercept)"] + coef(glm1)["mrt_dist_f2.0"],
+                     coef(glm1)["(Intercept)"] + coef(glm1)["mrt_dist_f>2.0"])
+
+glm1_intercepts <- round(exp(glm1_intercepts),2)
+
+# intercepts
+kable(glm1_intercepts, col.names="Intercepts")
+
+```
+
+Let's plot and examine the effect by varying the intercepts for different MRT distance category.
+
+```{r, echo=TRUE, fig.cap="Plot of Median Rental Rate/sqft vs Age of Condominium with varying intercept mrt model"}
+
+pl_mrt_base <-  pl + 
+  scale_colour_brewer(palette="Set1") +
+  labs(col='MRT (km)') +
+  facet_grid(.~ mrt_dist_f,
+             scales ="free")
+  
+pl_mrt_base + geom_line(aes(x=condo_age,
+                            y=fitted(glm1),
+                            col=mrt_dist_f,
+                            group=mrt_dist_f),
+                        size=1) 
+
+```
+<br>
+This output tells us that the MRT variable is statistically significant i.e It is unlikely that the improvement in fit with the added MRT variable is simply due to random fluctuations in the data. Thus it maybe important to consider MRT distance when modeling how median rental rate depends on the condo's age.
+
+```{r, echo=TRUE}
+
+summ(glm1, confint=TRUE)
+
+```
+<br>
+The margin of error get larger as seen in the distribution of our model coefficients when the MRT distance increases, one of the primary reason being our n sample size is lower for larger MRT distances.  
+
+```{r, echo=TRUE, fig.cap = "Regression coefficient plot with varying mrt intercept model"}
+plot_summs(glm1, 
+           scale=TRUE,
+           plot.distributions = TRUE)
+
+```
+
+<br>
+Next, we will examine the effects by varying the slope and keeping the intercept constant.
+
+```{r, echo=TRUE, results="asis"}
+
+glm2 <- glm(median_rent ~ mrt_dist_f:condo_age, 
+            family = Gamma(link = "log"),
+            data = train_set)
+
+glm2_intercept <- coef(glm2)["(Intercept)"]
+
+glm2_slopes <- c(coef(glm2)["mrt_dist_f0.5:condo_age"],
+                 coef(glm2)["mrt_dist_f1.0:condo_age"],
+                 coef(glm2)["mrt_dist_f1.5:condo_age"],
+                 coef(glm2)["mrt_dist_f2.0:condo_age"],
+                 coef(glm2)["mrt_dist_f>2.0:condo_age"])
+
+# intercept
+glm2_intercept <- round(exp(glm2_intercept),2)
+kable(glm2_intercept, col.names="Intercept")
+
+# slopes
+kable(glm2_slopes, col.names="Slopes", digits=3)
+                     
+```
+
+
+```{r, echo=TRUE, fig.cap="Plot of Median Rental Rate/sqft vs Age of Condominium with varying mrt slope model"}
+
+pl_mrt_base + geom_line(aes(x=condo_age,
+                            y=fitted(glm2),
+                            color=mrt_dist_f,
+                            group=mrt_dist_f),
+                        size=1) 
+  
+```
+
+
+```{r, echo=TRUE}
+
+summ(glm2, confint=TRUE)
+
+```
+
+### Is glm2 model better than glm1 ?
+
+We will use AIC, BIC and Adjusted R2 to access our models fitting power.
+
+Akaike information criterion (AIC) is an estimator of the relative quality of statistical models for a given set of data. Bayesian information criterion (BIC) is based, in part, on the likelihood function and it is closely related to the former.
+
+AIC formula is given by deviance + 2*(p+1), where p is the number of parameters in the model (here, we’ve broken the parameters down so 1 is for the estimated residual variance, and p is all the other parameters, e.g., our coefficents for fixed effects + our estimated variances.
+
+Lower AICs are better, since higher deviances mean that the model is not fitting the data well. Since AIC increases as p increases, AIC is penalized for more parameters.
+
+By default, GLM comes with AIC score, so we need not compute them again. But for R-square equivalent computation, we have to use another package rsq from Dabao Zhang since GLM doesn't provide it unlike lm.
+
+```{r, echo=TRUE, results="asis"}
+
+round(rsq(glm1, adj=TRUE),2)
+round(rsq(glm2, adj=TRUE),2)
+
+kable(BIC(glm1,glm2), digits=2)
+
+```
+
+Both our AIC (5617 vs 5745) and BIC (5785 vs 5657) score is higher compared to the varying intercept model.
+Adjusted R-squared score (0.29 vs 0.33) is also lower, indicating that this model is not any better.
+
+Anova F-test also shows that there are no real significant differences between the 2 models.
+
+Even though the slopes for all MRT levels are significant, we don’t have enough evidence to conclude that the interaction term (different slopes) is providing significant additional explanatory power over the first model.
+
+```{r, echo=TRUE, results="asis"}
+
+kable(anova(glm1,glm2, test="F"), digits=2)
+
+```
+
+```{r, echo=TRUE, fig.cap="Regression coefficient plot with varying mrt slope model"}
+
+plot_summs(glm2, 
+           plot.distributions = TRUE,
+           scale = TRUE)
+
+```
+<br>
+In the real interaction model, we will allow both intercepts and slope to vary. In this case, we not only have mrt-specific intercepts, but also mrt-specific slopes.
+
+Average rental rate = Intercept(based on mrt's distance to condo) + β
+(based on mrt's distance to condo) * condo's age
+
+We can rewrite this more succinctly as:
+$$ 
+\begin{align}
+y = Intercept_{mrt\_dist\_condo}+ β_{mrt\_dist\_condo} × age
+\end{align}
+$$ 
+To specify this interaction model in R, we use the following syntax
+
+```{r, echo=TRUE}
+
+glm3 <- glm(median_rent ~ mrt_dist_f * condo_age, 
+            family = Gamma(link = "log"),
+            data = train_set)
+```
+
+```{r, echo=TRUE, fig.cap="Plot of Median Rental Rate/sqft vs Age of Condominium with interaction mrt model"}
+
+pl_mrt_base + geom_line(aes(x=condo_age,
+                            y=fitted(glm3),
+                            col=mrt_dist_f,
+                            group=mrt_dist_f),
+                        size=1)
+
+```
+<br>
+
+Terms like mrt_dist_f1.0:condo_age are deviations from the baseline slope (the coefficient of condo_age in the model) 
+
+This models says that:
+
+For example, to get the slope for mrt_dist_f1.0, we need to add the interaction term to the baseline.
+
+$$
+\begin{align}
+β_{mrt\_dist\_f1.0} &= β_{mrt\_dist\_f0.5} + β_{mrt\_dist\_f1.0:condo\_age}\\
+                  &= condo\_age + mrt\_dist\_f1.0:condo\_age \\
+                  &= -0.02 + 0.01 \\
+                  &= -0.01
+\end{align}
+$$
+This slope estimate is negative, which agrees with the regression plot above.
+
+```{r, echo=TRUE}
+
+summ(glm3, confint=TRUE)
+
+```
+
+```{r, echo=TRUE, fig.cap="Regression coefficient plot with varying slope and interaction mrt model"}
+
+plot_summs(glm1,
+           glm3,
+           model.names = c("glm1","glm3"),
+           plot.distributions = TRUE,
+           scale = TRUE)
+```
+
+### Is there an interaction effect between Age of Condominium and MRT distance ?
+
+We could see that condo which are located within 0.5 km of MRT range has a much steeper slope compared to the rest. i.e the median rental rate falls faster as condo ages.
+
+The blue line (baseline for 0.5km) cut through all the other lines except >2km line which implies of significant interaction effect.
+
+Condo located more than 2 km away from MRT resembles the slope for 0.5km and therefore is not significant in the interaction effect.
+
+```{r, echo=FALSE, warning=FALSE,message=FALSE}
+
+source("https://install-github.me/jacob-long/interactions")
+library(interactions)
+
+```
+
+```{r, echo=TRUE, fig.cap="Interaction plot between Age of Condominium and MRT distance", warning=FALSE, message=FALSE}
+
+interact_plot(glm3,
+              pred = condo_age,
+              modx = mrt_dist_f,
+              x.label = "Age of Condominium",
+              y.label = "Median Rental Rate/sqft",
+              legend.main = "MRT (km)")
+```
+
+### Is glm3 model better than glm1 ?
+
+Anova test shows that the interaction model (glm3) has more explanatory power when compared to glm1.
+
+```{r, echo = TRUE}
+
+kable(anova(glm1,glm3,test="F"), digits=2)
+
+```
+
+### Calculate AIC by hand
+
+Let's try to compute the AIC score for the full interaction model.
+
+```{r, echo=TRUE}
+
+logLikelihood = logLik(glm3)
+deviance = -2*logLikelihood[1]; deviance
+
+# number of parameters
+p = 10
+
+# total parameters = 10 + 1 for estimated residual variance
+deviance + 2*(p+1) 
+
+```
+
+### Account for variability in Districts
+
+From our one-way ANOVA and TukeyHSD results, we learnt that there is much variablity in the districts.
+
+Let's try to include district as our explanatory variable in our model.
+
+```{r, echo=TRUE}
+
+glm4 <- glm(median_rent ~ mrt_dist_f * condo_age + district, 
+            family = Gamma(link = "log"),
+            data = train_set)
+
+```
+
+We can see that the all our scores improves drastically and anova test shows that this new model has more explanatory power. However one of the key assumption of anova is that our collected condo transaction should be independent of each other. 
+
+From our domain knowledge, we know that the rental price is usually based on the recently transacted rental price of neighboring apartments, hence that would violate the assumption and therefore our results maybe bias.
+
+We shall see how we can fix this issue by using multi-level modeling.
+
+```{r, echo=TRUE, results="asis"}
+
+AIC(glm4)
+BIC(glm4)
+rsq(glm4)
+
+kable(anova(glm3, glm4, test="F"), digits=2)
+
+```
+
+### Summary of Results
+
+The summary table below also concur with the earlier anova test results that glm3 is the best as it shows a lower score for AIC and BIC and higher Pseudo R2 when compared to the rest. We didnt include glm4 as it violate one of the key independent assumption.
+
+**Notice that the R-Square score using jtools is slightly different from the rsq package we computed earlier.**
+
+```{r, echo=FALSE}
+
+export_summs(glm1,glm2,glm3,
+             model.names = c("glm1","glm2","glm3"),
+             digits=2,
+             omit_coefs=c("condo_age","mrt_dist_f1.0","mrt_dist_f1.5",
+                          "mrt_dist_f2.0","mrt_dist_f>2.0","(Intercept)",
+                          "mrt_dist_f0.5:condo_age","mrt_dist_f1.0:condo_age",
+                          "mrt_dist_f1.5:condo_age","mrt_dist_f2.0:condo_age",
+                          "mrt_dist_f>2.0:condo_age"))
+
+```
+
+## Multilevel models for hierarchically nested data
+
+A multilevel analysis is a data analysis that uses variables that are measured at different levels of the hierarchy. A hierarchy can have many levels such as in our case, districts and regions level, where condo are nested within districts and districts are nested within regions.
+
+The difference between this model and the traditional linear regression model is that it takes the intraclass correlation into account and treats variables measured at different levels of the hierarchy in a more appropriate way.
+
+Also, we see that our data is very unbalanced between the groups. HLM provides this flexibility to handle missing data in each group.
+
+```{r, echo=TRUE, results="asis"}
+
+kable(table(train_set$district, train_set$region))
+
+```
+
+In this model, we are allowing the intercepts to varying between each region while keeping the fixed effect coefficients constant.
+
+```{r, echo=TRUE}
+
+m1 <- lmer(log(median_rent) ~ mrt_dist_f * condo_age + 
+               (1 | region),
+               REML=TRUE,
+               data=train_set)
+
+```
+
+<br>
+The dark grey lines represent the best model we had when we used the generalized linear regression model. But we are still missing much of the variance explanation as we did not take into account the variation of condos between districts or regions.
+
+From the dark grey lines, we can observed that we have underestimated the rental rate for CCR and overestimate it for OCR. The new multilevel model appeared to fit the dot better. 
+
+```{r, echo=TRUE, fig.cap="Plot of Median Rental Rate/sqft vs Age of Condominium with M1 model"}
+
+pl_mrt_base + geom_line(aes(x=condo_age,
+                            y=exp(fitted(m1)),
+                            col=mrt_dist_f,
+                            group=region),
+                        size=1) + 
+  
+   geom_line(aes(x=condo_age,
+                 y=fitted(glm3), 
+                 group=mrt_dist_f),
+                 col="darkgrey", 
+                 size=1) +
+  
+   facet_grid(mrt_dist_f ~ region,
+              scales="free")
+```
+
+### Comparing other linear mixed effects models
+
+For the purpose of this study, we shall not perform an exhaustive list comparsion but restrict ourselves to the models below.
+
+```{r, echo=TRUE}
+
+# An intercept that is different for each district and region but keeping fixed effects
+# coefficient the same across all districts and regions
+m2 <- lmer(log(median_rent) ~  mrt_dist_f + condo_age + mrt_dist_f:condo_age + 
+            (1|district),
+            REML=TRUE,
+            data=train_set)
+
+# An intercept that is different for each district but keeping interaction effect
+# coefficient the same across all districts
+m3 <- lmer(log(median_rent) ~ 1 + mrt_dist_f:condo_age + 
+            (1|district), 
+            REML=TRUE,
+            data=train_set) 
+
+# An intercept that is different for each region but keeping interaction effect
+# coefficient constant
+m4 <- lmer(log(median_rent) ~ 1 + mrt_dist_f:condo_age + 
+            (1|region),
+            REML=TRUE,
+            data=train_set) 
+
+# Same intercept for each district but with varying age coefficients
+m5 <- lmer(log(median_rent) ~ mrt_dist_f + condo_age + mrt_dist_f:condo_age +
+            (0 + condo_age|district),
+            REML=TRUE,
+            data=train_set) 
+
+# An intercept that is different for each district and different coefficient for age across all districts
+m6 <- lmer(log(median_rent) ~ mrt_dist_f + condo_age + mrt_dist_f:condo_age + 
+            (1 | district),
+            REML=TRUE,
+            data=train_set) 
+
+```
+
+### Summary of Results
+
+The best model, according to AIC/BIC and R-square score is model m5 that assumes different fixed slopes for each level of mrt distance and random age coefficients across all districts.
+
+```{r}
+
+export_summs(m1,m2,m3,m4,m5,m6,
+             model.names = c("m1","m2","m3","m4","m5","m6"),
+             digits=2,
+             omit_coefs=c("condo_age",
+                          "mrt_dist_f1.0",
+                          "mrt_dist_f1.5",
+                          "mrt_dist_f2.0",
+                          "mrt_dist_f>2.0",
+                          "(Intercept)",
+                          "mrt_dist_f0.5:condo_age",
+                          "mrt_dist_f1.0:condo_age",
+                          "mrt_dist_f1.5:condo_age",
+                          "mrt_dist_f2.0:condo_age",
+                          "mrt_dist_f>2.0:condo_age"))
+
+```
+
+### Model m5
+
+We have random age coefficients across all 28 districts.
+
+```{r, echo=TRUE, results="asis"}
+
+kable(coef(m5)$district, digits=2,
+      col.names = c("(Intercept)","1.0","1.5","2.0",">2.0","age","1.0:age",
+                    "1.5:age","2.0:age", ">2.0:age"))
+
+```
+
+
+```{r,echo=TRUE, results="asis"}
+
+summ(m5, confint=TRUE)
+
+```
+
+### Assumption Check
+#### Assumption 1: Linearity
+
+A regression analysis is meant to fit the best rectilinear line that explains the most data given your set of parameters. Therefore, the base models rely on the assumption that your data follows a straight line (though the models can be expanded to handle curvilinear data).
+
+Models are assumed to be linear in each of the independent variables. This assumption can be checked with plots of the residuals versus each of the variables. 
+
+The plot looks pretty random so we probably didn't violate this assumption.
+
+```{r, fig.cap = "Linearity check for Age of Condominium", echo=TRUE}
+
+m5_age_linearity <- plot(train_set$condo_age,
+                         resid(m5),
+                         xlab="Age of Condominium",
+                         ylab="Median Rental Rate") 
+
+```
+
+#### Assumption 2: Homogeneity of Variance
+
+The assumption of homogeneity of variance is an assumption of the independent samples t-test and ANOVA stating that all comparison groups have the same variance.
+
+From this plot, we can see that the initial spread appear random around the centered line, but it seems to spread wider like a fan towards the end.
+
+```{r, fig.cap = "Residual plot for m2 model"}
+
+plot(m5)
+
+```
+
+#### Assumption 3: The residuals of the model are normally distributed.
+
+MLM assume that the residuals of the analysis ARE normally distributed.
+
+There is some deviation from from the expected normal line towards the tails, but overall the line looks straight and therefore pretty normal and suggests that the assumption is not violated.
+
+```{r, fig.cap="QQ plot of model m2"}
+
+qqmath(m5)
+
+```
+
+A parametric bootstrap is performed using DHARMa package which uses a simulation-based approach to create readily interpretable scaled (quantile) residuals for fitted (generalized) linear mixed models and models from 'lme4'.
+
+The model is refit on new data, and residuals are created by comparing observed residuals against refitted residuals.
+
+The QQplot shows a very good fit indicating that the residuals of the model are normally distributed.
+
+The residual plot also show randomness around the centered line indicating that the homogeneity of variance is not violated.
+
+```{r, echo=TRUE, warning=FALSE, message=FALSE}
+
+simulationOutput <- simulateResiduals(fittedModel=m5, n=250,refit=T,seed=123)
+plot(simulationOutput)
+
+```
+
+### Model validation
+
+Let's use the test dataset we have obtained earlier and try to fit it using our best model m5
+
+Root Mean Square Error (RMSE) is the standard deviation of the residuals (prediction errors). It is a measure of how spread out these residuals are. In other words, it tells you how concentrated the data is around the line of best fit.
+
+We can see that our test set has a lower RMSE value than our training set which shows that our model provide a comparatively good fit.
+
+```{r, echo=TRUE}
+
+m5_pred_train  <- exp(predict(m5, train_set))
+m5_error_train <- m5_pred_train - train_set$median_rent
+m5_RMSE_train  <- sqrt(mean(m5_error_train^2))
+m5_RMSE_train
+
+```
+
+```{r, echo=TRUE}
+
+m5_pred_test  <- exp(predict(m5, test_set))
+m5_error_test <- m5_pred_test - test_set$median_rent
+m5_RMSE_test  <- sqrt(mean(m5_error_test^2))
+m5_RMSE_test
+
+```
+
+
+# Implications
+
+# Limitations and Future Directions
+
+# Appendix
+
+```{r, echo=TRUE}
+print(sessionInfo(), locale = FALSE)
+
+```
+
+
