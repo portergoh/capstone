@@ -151,15 +151,21 @@ $\checkmark$ Please ensure that you have provided the same seed number in order 
 
 ```{r, echo=TRUE}
 
-# Create a dataframe with each condo mean value
-cluster_df_grp <- train_set %>%
-  group_by(condo_name, district, region, x_coord, y_coord) %>%
-  summarise(avg_rent = mean(median_rent),
-            avg_age = mean(condo_age),
-            avg_mrt_dist = mean(mrt_dist)) 
+# Preparing for Clustering Analysis
+# Removing incomplete cases which casue problem to clustering results
 
-cluster_df <- as_tibble(cluster_df_grp)
+condo_dataset$region_l <-  factor(condo_dataset$region, 
+                                  levels=c("CCR", "RCR", "OCR"))
+
+condo_rent1c <- condo_dataset[complete.cases(condo_dataset),]
+
+cluster_df_grp<- condo_rent1c %>%
+  group_by(condo_name, district, region_l, x_coord, y_coord) %>%
+  summarise(avg_rent = mean(median_rent),
+            avg_age = mean(condo_age))
+
 #glimpse(cluster_df_grp)
+cluster_df <- as_tibble(cluster_df_grp)
 
 # Transform the mrt distance into category
 train_set$mrt_dist_f <- train_set$mrt_dist %>%
@@ -761,6 +767,7 @@ This output tells us that the MRT variable is statistically significant i.e It i
 summ(glm1, confint=TRUE)
 
 ```
+
 <br>
 The margin of error get larger as seen in the distribution of our model coefficients when the MRT distance increases, one of the primary reason being our n sample size is lower for larger MRT distances.  
 
@@ -857,6 +864,7 @@ plot_summs(glm2,
            scale = TRUE)
 
 ```
+
 <br>
 In the real interaction model, we will allow both intercepts and slope to vary. In this case, we not only have mrt-specific intercepts, but also mrt-specific slopes.
 
@@ -887,6 +895,7 @@ pl_mrt_base + geom_line(aes(x=condo_age,
                         size=1)
 
 ```
+
 <br>
 
 Terms like mrt_dist_f1.0:condo_age are deviations from the baseline slope (the coefficient of condo_age in the model) 
@@ -1352,12 +1361,13 @@ res_nbclust$All.CriticalValues
 
 res_nbclust$Best.partition
 # Partition that corresponds to the best number of clusters
+
 grp_res <- res_nbclust$Best.partition
 #table(grp_res)
 #glimpse(grp_res)
 
-#Cut tree into 3 groups (clusters)
-grp <- cutree(res_ward2, k = 3)
+# Cut tree into 3 groups (clusters)
+grp <- cutree(res_complete, k = 3)
 
 ```
 
@@ -1391,7 +1401,7 @@ fviz_nbclust(cluster_df, FUN = hcut,
 
 #### Silhouette method
 
-Silhouette suggest optimal 4 cluster.
+Silhouette suggest optimal 5 cluster.
 
 ```{r, echo=TRUE, warning=FALSE, message=FALSE}
 
@@ -1408,7 +1418,7 @@ We can visualize using factoextra by cutting into 3 groups by color.
 
 par(mar=c(1,5,5,5))
 
-fviz_dend(res_ward2, k = 3, # Cut in 3 groups
+fviz_dend(res_complete, k = 3, # Cut in 3 groups
           cex = 0.8, # label size
           k_colors = c("#2E9FDF", "#00AFBB", "#E7B800"),
           color_labels_by_k = TRUE, # color labels by groups
@@ -1438,9 +1448,9 @@ clus_profile <- data.frame (
 
 kable(clus_profile, digits=2)
 
-df_grp$range[df_grp$grp == 1] <- "High"
+df_grp$range[df_grp$grp == 3] <- "High"
 df_grp$range[df_grp$grp == 2] <- "Medium"
-df_grp$range[df_grp$grp == 3] <- "Low"
+df_grp$range[df_grp$grp == 1] <- "Low"
 
 ```
 
@@ -1486,35 +1496,34 @@ df_grp2 <- df_grp2 %>%
 
 ```
 
-```{r, echo=TRUE, fig.height=8, fig.cap="Heap map plot with respect to cluster and region group"}
+### Visualise Heat Map
+
+```{r, echo=TRUE, fig.height=8, fig.cap="Heat map plot with respect to cluster and region group"}
 
 # Visualise Heat Map
 df_grp2 %>% 
   ggplot(aes(x = district, y = range, fill = avg_rent)) +
-  geom_tile(col = "white") + 
-  scale_fill_gradient(low = "yellow", high = "darkred") + 
+  geom_tile(col = "white") +
+  scale_fill_distiller("Median Rent Rates", palette = "Spectral") +
   geom_text(aes(label = paste("m", avg, "sd", sd, sep = "\n")), size = 3) +
   scale_y_discrete(limits=c("Low", "Medium", "High")) +  
   facet_grid(. ~ region, scale = "free", space ="free") +
-  theme(legend.position = "none",
-        axis.text = element_text(size = rel(.90)),
+  theme(legend.position = "bottom",
         plot.title = element_text(face = "bold", hjust = 0.5),
         plot.subtitle = element_text(hjust = 0.5)) +
   labs(title = "Result of Hierarchical Clustering",
-       subtitle = "Not all Condo in the same region are the same",
+       subtitle = "Not all Condo Rent Rates in the same region are the same",
        x="District Number", 
        y="Median Rent Rate Range",
        caption = "Source: Urban Redevelopment Authority (URA)") 
 
 ```
 
-```{r, fig.height=8}
+
+```{r}
 
 # Visualise Lollipop Chart
-# Looking into District 10, 11, 05, 12, 14, 21
-# Observation: 
-# Generally, District 10, 11, 05, 12, 14, 21 have mixed on condo with
-# lower average rental rates. It is noted that the age on condo tend to be older
+# Looking into District 10, 11
 
 plot_Lollipop_district <- function(dist){
   
@@ -1565,7 +1574,23 @@ plot_Lollipop_district <- function(dist){
   coord_flip() 
 }
 
-plot_Lollipop_district("05")
+
+
+```
+
+#### District 10
+
+```{r, fig.height=8}
+
+plot_Lollipop_district("10")
+
+```
+
+#### District 11
+
+```{r, fig.height=8}
+
+plot_Lollipop_district("11")
 
 ```
 
@@ -1608,6 +1633,8 @@ sgmap_p <- geom_map(data=sg_map, map=sg_map,
 
 ```
 
+### Result of Hierarchical Clustering
+
 ```{r, echo=TRUE, fig.height=8, fig.width=10, fig.cap="3 Clustered Range of Median Rent Rates"}
 
 df_grp2_p <- ggplot(data = df_grp2, aes(x = x_coord, y = y_coord))
@@ -1624,8 +1651,7 @@ df_grp2_p +
             col = "black",
             size = 5) +
   
-  labs(title = "Result of Hierarchical Clustering", 
-       subtitle = "3 Clustered Range of Median Rent Rates",
+  labs(title = "3 Clustered Range of Median Rent Rates", 
        caption = "Source: Urban Redevelopment Authority (URA)",
        x="",
        y="") +
