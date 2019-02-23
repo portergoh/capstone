@@ -42,6 +42,11 @@ h4 { /* Header 4 */
   color: DarkBlue;
 }
 
+h5 { /* Header 4 */
+  font-size: 14px;
+  color: DarkBlue;
+}
+
 .table{
   width:auto;
   font-size: 13px;
@@ -105,7 +110,7 @@ if (!require("pacman")) install.packages("pacman")
 p_load(devtools,bookdown,tidyverse,knitr,modelr,scatterplot3d,
        gifski,ggpubr,jtools,broom,huxtable,lme4,sjPlot,
        gridExtra,lattice,DHARMa,rsq,summarytools,GGally,
-       NbClust,factoextra,raster,rgdal,sp,proto)
+       NbClust,factoextra,raster,rgdal,sp,proto,e1071,ranger,caret)
 
 # Install our custom built smur package which contains the condo dataset.
 # Data collection routines are packed into smur package for easy access 
@@ -604,6 +609,484 @@ Our TukeyHSD results also show differences between multiple pairwise districts i
 
 We would therefore need to take into account of these variability when we start our modeling.
 
+
+# Hierarchical Clustering
+
+Hierarchical clustering, also known as hierarchical cluster analysis, is an algorithm that groups similar objects into groups called clusters. The endpoint is a set of clusters, where each cluster is distinct from each other cluster, and the objects within each cluster are broadly similar to each other.
+
+We hope to use this clustering method to rediscover new groupings that may fit our model better.
+
+```{r, echo=TRUE}
+
+# Hierarchical Clustering with R Base Method
+# Computes and returns the distance matrix computed by using the 
+# specified distance measure to compute the distances between the 
+# rows of a data matrix.
+#
+# This must be one of "euclidean", "maximum", "manhattan", "canberra", 
+# "binary" or "minkowski". 
+# Any unambiguous substring can be given.
+#
+
+# Scaling and Centering of numeric variables 
+df <- cluster_df %>%
+  dplyr::select(avg_rent, x_coord, y_coord) %>%
+  mutate_all(list(scale))
+
+# Usual distance between the two vectors (2 norm aka L_2), sqrt(sum((x_i - y_i)^2)).
+d <- dist(df, method = "euclidean")
+
+# Hierarchical clustering 
+# Distance measure: one of "ward.D", "ward.D2", "single", "complete", 
+# "average" (= UPGMA), "mcquitty" (= WPGMA), "median" (= WPGMC) or 
+# "centroid" (= UPGMC).
+res_ward <- hclust(d, method = "ward.D" )
+res_ward2 <- hclust(d, method = "ward.D2" )
+res_single <- hclust(d, method = "single" )
+res_complete <- hclust(d, method = "complete" )
+res_avg <- hclust(d, method = "average" )
+res_centroid <- hclust(d, method = "centroid" )
+
+```
+
+## Cluster Dendrogram
+
+We created 6 cluster dendrograms based on different distance measuring algorithms
+
+* ward.D
+* ward.D2
+* single
+* complete
+* average
+* centroid
+
+We can see that Ward.D and Ward.D2 method generated the most clearly defined cluster. 
+<br><br>
+
+```{r, fig.cap="Cluster Dendrogram plot"}
+
+# Plot the obtained dendrogram
+par(mfrow = c(2, 3))
+par(mar=c(1,5,1,1))
+plot(res_ward, cex = 0.7, hang = -1, main="ward.D")
+plot(res_ward2, cex = 0.7, hang = -1, main="ward.D2")
+plot(res_single, cex = 0.7, hang = -1, main="single")
+plot(res_complete, cex = 0.7, hang = -1, main="complete")
+plot(res_avg, cex = 0.7, hang = -1, main="average")
+plot(res_centroid, cex = 0.7, hang = -1, main="centroid")
+
+```
+
+```{r, echo=FALSE, include=FALSE}
+
+# NbClust for computing about 30 indexes at once, in order to find the 
+# optimal number of clusters.
+
+# NbClust package provides 30 indices for determining the number of clusters 
+# and proposes to user the best clustering scheme from the different results 
+# obtained by varying all combinations of number of clusters, distance measures, 
+# and clustering methods.
+
+par(mar=c(5,5,1,1))
+res_nbclust <- NbClust(df, distance = "euclidean", 
+               min.nc = 2,
+               max.nc = 15, 
+               method = "ward.D2", 
+               index = "all")
+
+# Conclusion: According to the majority rule, the best number of clusters is  3 
+
+res_nbclust$All.index
+# Values of indices for each partition of the dataset obtained with a number 
+# of clusters between min.nc and max.nc.
+
+res_nbclust$Best.nc
+# Best number of clusters proposed by each index and the corresponding index value.
+
+res_nbclust$All.CriticalValues
+# Critical values of some indices for each partition obtained with a number of clusters between min.nc and max.nc.
+
+res_nbclust$Best.partition
+# Partition that corresponds to the best number of clusters
+
+grp_res <- res_nbclust$Best.partition
+#table(grp_res)
+#glimpse(grp_res)
+
+# Cut tree into 3 groups (clusters)
+grp <- cutree(res_complete, k = 3)
+
+```
+
+<br>
+According to the majority rule when using NbClust, the best number of clusters is 3.
+
+```{r, echo=TRUE, fig.cap="Plot using NbClust for determining the best cluster groupings"}
+
+fviz_nbclust(res_nbclust, ggtheme = theme_minimal())
+
+```
+
+### Elbow method
+
+Elbow suggest optimal 3 cluster.
+
+```{r, echo=TRUE, warning=FALSE, message=FALSE}
+
+# factoextra to determine the optimal number clusters for a given clustering 
+# methods and for data visualization.
+# fviz_nbclust(x, FUNcluster = kmean, method = c("silhouette", "wss", "gap_stat"))
+
+# Elbow method
+fviz_nbclust(cluster_df, FUN = hcut, 
+             method = "wss", # "wss" (for total within sum of square) 
+             diss = d) +
+  geom_vline(xintercept = 3, linetype = 2) +
+  labs(subtitle = "Elbow method")
+
+```
+
+### Silhouette method
+
+Silhouette suggest optimal 5 cluster.
+
+```{r, echo=TRUE, warning=FALSE, message=FALSE}
+
+# Silhouette method
+fviz_nbclust(cluster_df, FUN = hcut, 
+             method = "silhouette") +
+  labs(subtitle = "Silhouette method")
+
+```
+
+We can visualize using factoextra by cutting into 3 groups by color.
+
+```{r, echo=TRUE, fig.cap="Plot of the 3 cluster group using factoextra"}
+
+par(mar=c(1,5,5,5))
+
+fviz_dend(res_complete, k = 3, # Cut in 3 groups
+          cex = 0.8, # label size
+          k_colors = c("#2E9FDF", "#00AFBB", "#E7B800"),
+          color_labels_by_k = TRUE, # color labels by groups
+          rect = TRUE, # Add rectangle around groups
+          show_labels = FALSE,
+          labels_track_height = 0.1,
+          main="")
+
+```
+
+## Visualise our Hierarchical Clustering
+
+```{r, results="asis"}
+
+# Put cluster name to the original dataset
+df_grp <- data.frame(cluster_df, grp)
+#glimpse(df_grp)
+
+# Profiling the clusters
+# Statistic summary of Cluster Group
+clus_profile <- data.frame (
+  df_grp %>% group_by(Cluster = grp) %>%
+  summarise(Freq = n(),
+            mean_rent = mean(avg_rent),
+            sd_rent = sd(avg_rent),
+            mean_age = mean(avg_age),
+            sd_age = sd(avg_age))
+)
+
+```
+
+```{r, echo=FALSE, include=FALSE}
+
+# Get Singapore map data
+sg <- raster::getData(country="SGP", level=0) 
+plot(sg)
+#glimpse(sg)
+
+# To retrieve or describe the CRS
+proj4string(sg)
+
+sg_map <- fortify(sg)
+#glimpse(sg_map)
+
+sg_map %>% 
+  ggplot() +
+  geom_map(data=sg_map, map=sg_map, 
+           aes(x=long, y=lat, map_id=id),
+           col = "deepskyblue4", fill = "grey") 
+
+# Get CRS reference from http://spatialreference.org/ref/epsg/3414/
+
+# To transform from one CRS to another:
+sg_svy21 <- spTransform(sg, CRS("+init=epsg:3414"))
+
+sg_map <- fortify(sg_svy21)
+glimpse(sg_map)
+
+sg_map %>% 
+  ggplot() +
+  geom_map(data=sg_map, map=sg_map, 
+           aes(x=long, y=lat, map_id=id),
+           col = "deepskyblue4", fill = "white") 
+
+sgmap_p <- geom_map(data=sg_map, map=sg_map, 
+           aes(x=long, y=lat, map_id=id),
+           col = "deepskyblue4", fill = "white")
+
+```
+
+We could see that cluster 3 has the highest mean rental score follow by cluster 2 and 1.
+This is very similar to our most expensive region CCR, follow by RCR and OCR.
+
+```{r}
+kable(clus_profile, digits=2)
+
+df_grp$range[df_grp$grp == 3] <- "High"
+df_grp$range[df_grp$grp == 2] <- "Medium"
+df_grp$range[df_grp$grp == 1] <- "Low"
+
+```
+
+```{r, echo=FALSE, include=FALSE}
+
+# Cross Tabulation to compare cluster groups vs districts
+crosstab <- data.frame (
+  with(df_grp, tapply(avg_rent, 
+                      list(row_district = district,
+                           col_cluster = range),
+                           mean))
+)
+round(crosstab, 2)
+
+# Add mean and sd of median_rent for each district in each group
+avg_table <- as_tibble(df_grp %>% 
+                        group_by(grp, district) %>%
+                        summarise(avg = round(mean(avg_rent),2),
+                                  sd = round(sd(avg_rent),2)))
+
+glimpse(avg_table)
+
+df_grp2 <- left_join(df_grp, avg_table)
+
+# Add median coordinates for each districts
+district_table <- as_tibble(df_grp %>% 
+                            group_by(district) %>%
+                            summarise(xloc_median = median(x_coord),
+                                      yloc_median = median(y_coord)))
+glimpse(district_table)
+
+df_grp2 <- left_join(df_grp2, district_table)
+
+glimpse(df_grp2)
+
+# Reorder factet_grid
+df_grp2$region <- factor(df_grp2$region, 
+                         levels = c("CCR", "RCR", "OCR"), 
+                         ordered = T)
+
+df_grp2 <- df_grp2 %>%
+  arrange(range,desc(avg))
+
+```
+
+<br>
+The chart below shows our 3 new clusters overlay onto the Singapore map. Compared it to existing clustering - \@ref(singapore-map) using CCR,RCR and OCR, we could see quite similar groupings with areas over of overlap.
+
+```{r, echo=FALSE, fig.height=8, fig.width=10, fig.cap="3 Clustered Range of Median Rent Rates"}
+
+df_grp2_p <- ggplot(data = df_grp2, aes(x = x_coord, y = y_coord))
+
+df_grp2_p +
+  sgmap_p +
+  geom_point(aes(col = range),
+             shape = 17,
+             size = 3) +
+  scale_colour_discrete(name = "Range of Median Rent Rates", 
+                        limits = c("High", "Medium", "Low")) +
+  
+  geom_text(aes(x = xloc_median, y = yloc_median, label = district), 
+            col = "black",
+            size = 5) +
+  
+  labs(title = "3 Clustered Range of Median Rent Rates", 
+       caption = "Source: Urban Redevelopment Authority (URA)",
+       x="",
+       y="") +
+  
+  theme(plot.title = element_text(face = "bold", hjust = 0.5),
+        plot.subtitle = element_text(hjust = 0.5),
+        axis.text = element_blank(),
+        axis.ticks = element_blank(),
+        panel.grid = element_blank(),
+        panel.background = element_rect(fill = "lightcyan1"),
+        legend.position = "bottom") 
+
+```
+
+## Heat Map for new clusters
+
+We further created a heat map to compare the new cluster groupings with our original region groups.
+
+We observed that within CCR, there are area of overlaps between our new clusters. And the interesting districts are 10 and 11 which happen to be in our new cluster 1 (least expensive) but in the most expensive CCR region.
+
+```{r, echo=TRUE, fig.height=8, fig.cap="Heat map plot with respect to cluster and region group"}
+
+# Visualise Heat Map
+df_grp2 %>% 
+  ggplot(aes(x = district, y = range, fill = avg_rent)) +
+  geom_tile(col = "white") +
+  scale_fill_distiller("Median Rent Rates", palette = "Spectral") +
+  geom_text(aes(label = paste("m", avg, "sd", sd, sep = "\n")), size = 3) +
+  scale_y_discrete(limits=c("Low", "Medium", "High")) +  
+  facet_grid(. ~ region, scale = "free", space ="free") +
+  theme(legend.position = "bottom",
+        plot.title = element_text(face = "bold", hjust = 0.5),
+        plot.subtitle = element_text(hjust = 0.5)) +
+  labs(title = "Result of Hierarchical Clustering",
+       subtitle = "Not all Condo Rent Rates in the same region are the same",
+       x="District Number", 
+       y="Median Rent Rate Range",
+       caption = "Source: Urban Redevelopment Authority (URA)") 
+
+```
+
+<br>
+Let's us take a closer look on district 10 and 11 using a lollipop chart.
+
+```{r}
+
+# Visualise Lollipop Chart
+# Looking into District 10, 11
+
+plot_Lollipop_district <- function(dist){
+  
+  cols <- c("High" = "red", "Medium" = "green", "Low" = "deepskyblue4")
+  
+  df_grp2_district <- df_grp2 %>% 
+  filter(district == dist) %>%
+  group_by(condo_name, range) %>%
+  summarise(avg_condo = mean(avg_rent),
+            avg_condo_age = mean(avg_age))
+
+  # Order
+  df_grp2_district$condo_name_r <- reorder(df_grp2_district$condo_name,
+                                           df_grp2_district$avg_condo)
+
+  df_grp2_district %>% 
+      ggplot(aes(x = condo_name_r, y = avg_condo, col = range)) +
+      geom_segment(aes(x = condo_name_r,
+                       xend = condo_name_r,
+                       y = avg_condo,
+                       yend = mean(avg_condo),
+                       col = range)) +
+  
+  geom_point(aes(size = avg_condo_age)) +
+  scale_size(name = "Relative Age of Condo") +
+  
+  geom_text(aes(label = round(avg_condo, 2)), 
+            col = "black", 
+            size = 3,
+            hjust = -0.5,
+            fontface = "bold") +
+  geom_hline(aes(yintercept = mean(avg_condo))) +
+  
+  scale_color_manual(name = "Cluster Group",
+                     values = cols,
+                     limits = c("High", "Medium", "Low")) +
+ 
+  labs(title = paste("Listing of Condo in District ", dist, sep = ""),
+       subtitle = "Size of Dot Relative to Age of Condo",
+       x="", 
+       y="",
+       caption = "Source: Urban Redevelopment Authority (URA)") +
+   theme(legend.position = "bottom",
+        axis.text = element_text(size = rel(.90)),
+        plot.title = element_text(face = "bold", hjust = 0.5),
+        plot.subtitle = element_text(hjust = 0.5)) +
+  
+  coord_flip() 
+}
+
+```
+
+### District 10
+
+```{r, fig.height=8}
+
+plot_Lollipop_district("10")
+
+```
+
+### District 11
+
+```{r, fig.height=8}
+
+plot_Lollipop_district("11")
+
+```
+
+<br>
+Reviewing the geographical location, it appears that the highest and lowest rental condo are at opposite end of each District.
+
+```{r echo=FALSE, message = FALSE, warning=FALSE,fig.width=10, fig.height=6}
+
+# Where is District 10, 11
+
+df_grp3 <- df_grp2 %>% filter(district == "10" |
+                              district == "11")  
+
+splitdata <- df_grp3 %>% dplyr::select(x_coord, y_coord, district)
+splitdata$district <- as.factor(splitdata$district)
+
+splitdata <- split(splitdata, splitdata$district)
+
+#glimpse(splitdata)
+
+applied_data <- lapply(splitdata, function(c_df){
+  c_df[chull(c_df), ]  
+})
+
+#glimpse(applied_data)
+
+combined_data <- do.call(rbind, applied_data)
+
+#glimpse(combined_data)
+
+df_grp3 %>%
+  ggplot(aes(x = x_coord, y = y_coord)) +
+  
+  geom_polygon(data = combined_data,  
+                          aes(x = x_coord, y = y_coord, fill = district),  
+                          alpha = 1/2) +
+  
+  geom_point(aes(col = range, shape = district), size = 3) +
+  scale_shape(name = "Selected Districts") +
+  scale_fill_discrete(name = "Selected Districts") +
+  
+  geom_text(aes(x = xloc_median, y = yloc_median, label = district), 
+                                    col = "black",
+                                    fontface = "bold",
+                                    size = 5) +
+
+  geom_text(aes(label = condo_name, size = avg_rent, fontface = avg_rent),
+            check_overlap = T) +
+  guides(size = "none") +
+
+  scale_colour_discrete(name = "Range of Median Rent Rates", 
+                        limits = c("High", "Medium", "Low")) +
+  
+  labs(title = "Result of Hierarchical Clustering",
+       x = "Coordinates X",
+       y = "Coordinates Y",
+       caption = "Source: Urban Redevelopment Authority (URA)") +
+  
+  theme(plot.title = element_text(face = "bold",hjust = 0.5),
+        legend.position = "bottom") 
+
+
+```
+
 # Model
 
 ## Multiple Linear Regression
@@ -995,9 +1478,11 @@ glm4 <- glm(median_rent ~ mrt_dist_f * condo_age + district,
 
 ```
 
-We can see that the all our scores improves drastically and anova test shows that this new model has more explanatory power. However one of the key assumption of anova is that our collected condo transaction should be independent of each other. 
+While we see that glm4 improves our score drastically and anova test shows that this new model indeed has more explanatory power when compared to the previous.
 
-From our domain knowledge, we know that the rental price is usually based on the recently transacted rental price of neighboring apartments, hence that would violate the assumption and therefore our results maybe bias.
+However, there is one caveat here, one of the key assumption of anova is that our collected condo transaction should be independent of each other. 
+
+From our domain knowledge, we know that the rental price maybe affected by the recently transacted price of neighboring apartments, hence repeated measurement of the same subject may violate the assumption of independence and make our result bias.
 
 We shall see how we can fix this issue by using multi-level modeling.
 
@@ -1013,20 +1498,29 @@ kable(anova(glm3, glm4, test="F"), digits=2)
 
 ### Summary of Results
 
-The summary table below also concur with the earlier anova test results that glm3 is the best as it shows a lower score for AIC and BIC and higher Pseudo R2 when compared to the rest. We didnt include glm4 as it violate one of the key independent assumption.
+The summary table below shows that glm4 is by far the best model so far with the lowest score for AIC and BIC. It also has the highest overall Pseudo R2 when compared to the rest. If the assumption of independence hold, including district as our explanatory variable maybe plausibe without overfiting to our model.
+
+However, we shall see in the next section how we can use multi-level modeling to account for variability in the districts and also cross validation to validate our models. 
 
 **Notice that the R-Square score using jtools is slightly different from the rsq package we computed earlier.**
 
 ```{r, echo=FALSE}
 
-export_summs(glm1,glm2,glm3,
-             model.names = c("glm1","glm2","glm3"),
+export_summs(glm1,glm2,glm3,glm4,
+             model.names = c("glm1","glm2","glm3","glm4"),
              digits=2,
              omit_coefs=c("condo_age","mrt_dist_f1.0","mrt_dist_f1.5",
                           "mrt_dist_f2.0","mrt_dist_f>2.0","(Intercept)",
                           "mrt_dist_f0.5:condo_age","mrt_dist_f1.0:condo_age",
                           "mrt_dist_f1.5:condo_age","mrt_dist_f2.0:condo_age",
-                          "mrt_dist_f>2.0:condo_age"))
+                          "mrt_dist_f>2.0:condo_age","district02","district03",
+                          "district04","district05","district06","district07",
+                          "district08","district09","district10","district11",
+                          "district12","district13","district14","district15",
+                          "district16","district17","district18","district19",
+                          "district20","district21","district22","district23",
+                          "district24","district25","district26","district27",
+                          "district28"))
 
 ```
 
@@ -1044,26 +1538,26 @@ kable(table(train_set$district, train_set$region))
 
 ```
 
-In this model, we are allowing the intercepts to varying between each region while keeping the fixed effect coefficients constant.
+In this model, we are allowing the intercepts to varying between each districts while keeping the fixed effect coefficients constant.
 
 ```{r, echo=TRUE}
 
-m1 <- lmer(log(median_rent) ~ mrt_dist_f * condo_age + 
-               (1 | region),
+m1 <- lmer(median_rent ~ mrt_dist_f * condo_age + 
+               (1 | district),
                REML=TRUE,
                data=train_set)
 
 ```
 
 <br>
-The dark grey lines represent the best model we had when we used the generalized linear regression model. But we are still missing much of the variance explanation as we did not take into account the variation of condos between districts or regions.
+The dark grey lines represent one of the best model we had when we used the generalized linear regression model. But we are still missing much of the variance explanation as we did not take into account the variation of condos between districts or regions.
 
 From the dark grey lines, we can observed that we have underestimated the rental rate for CCR and overestimate it for OCR. The new multilevel model appeared to fit the dot better. 
 
 ```{r, echo=TRUE, fig.cap="Plot of Median Rental Rate/sqft vs Age of Condominium with M1 model"}
 
 pl_mrt_base + geom_line(aes(x=condo_age,
-                            y=exp(fitted(m1)),
+                            y=fitted(m1),
                             col=mrt_dist_f,
                             group=region),
                         size=1) + 
@@ -1084,68 +1578,56 @@ For the purpose of this study, we shall not perform an exhaustive list comparsio
 
 ```{r, echo=TRUE}
 
-# An intercept that is different for each district while keeping fixed effects 
-# coefficients constant
-m2 <- lmer(log(median_rent) ~  mrt_dist_f + condo_age + mrt_dist_f:condo_age + 
-            (1|district),
+# Different intercepts for each district with varying slope for condo age
+m2 <- lmer(median_rent ~  mrt_dist_f + condo_age + mrt_dist_f:condo_age + 
+            (1 + condo_age|district),
             REML=TRUE,
             data=train_set)
 
-# An intercept that is different for each district while keeping fixed effects 
-# coefficients constant
-m3 <- lmer(log(median_rent) ~ 1 + mrt_dist_f:condo_age + 
+# Different intercepts for each district with no interaction
+m3 <- lmer(median_rent ~  mrt_dist_f + condo_age +
             (1|district), 
             REML=TRUE,
             data=train_set) 
 
-# An intercept that is different for each region while keeping fixed effects 
-# coefficients constant
-m4 <- lmer(log(median_rent) ~ 1 + mrt_dist_f:condo_age + 
+# Different intercepts for each region with no interaction
+m4 <- lmer(median_rent ~ mrt_dist_f + condo_age +
             (1|region),
             REML=TRUE,
             data=train_set) 
 
-# Same intercept for each district but with varying age coefficients while keeping 
-# fixed effects coefficients constant
-m5 <- lmer(log(median_rent) ~ mrt_dist_f + condo_age + mrt_dist_f:condo_age +
-            (0 + condo_age|district),
+# Different intercepts for each region with interaction 
+m5 <- lmer(median_rent ~ 1 + mrt_dist_f + condo_age + mrt_dist_f:condo_age +
+            (1|region),
             REML=TRUE,
             data=train_set) 
 
-# Same intercept for each region but with varying age coefficients while keeping 
-# fixed effects coefficients constant
-m6 <- lmer(log(median_rent) ~ mrt_dist_f + condo_age + mrt_dist_f:condo_age +
+# Same intercept for each region with varying slope for condo age
+m6 <- lmer(median_rent ~ mrt_dist_f + condo_age + mrt_dist_f:condo_age +
             (0 + condo_age|region),
-            REML=TRUE,
-            data=train_set) 
-
-# An intercept that is different for each districts while keeping fixed 
-# effects coefficients constant
-m7 <- lmer(log(median_rent) ~ mrt_dist_f + condo_age + mrt_dist_f:condo_age + 
-            (1 | district),
             REML=TRUE,
             data=train_set) 
 
 ```
 
-### Is m6 better than m5 ?
+### Is m2 better than m1 ?
 
-Even though m6 has the best overall AIC/BIC but lower R2 score, adding random slopes for age across regions doesn't seem to significantly improve our model fit.
+Anova test shows that m2 has more explanatory power than m1.
 
 ```{r, echo=TRUE, results="asis"}
 
-kable(anova(m5,m6, refit=FALSE), digits=2)
+kable(anova(m1,m2, refit=FALSE), digits=2)
 
 ```
 
 ### Summary of Results
 
-The best model, according to AIC/BIC and R-square score is model m5 that assumes different fixed slopes for each level of mrt distance and random age coefficients across all districts.
+The best model, according to AIC/BIC and R-square score is model m2 that assumes varying slope for condo age with different intercepts in each district.
 
 ```{r}
 
-export_summs(m1,m2,m3,m4,m5,m6,m7,
-             model.names = c("m1","m2","m3","m4","m5","m6","m7"),
+export_summs(m1,m2,m3,m4,m5,m6,
+             model.names = c("m1","m2","m3","m4","m5","m6"),
              digits=2,
              omit_coefs=c("condo_age",
                           "mrt_dist_f1.0",
@@ -1161,13 +1643,13 @@ export_summs(m1,m2,m3,m4,m5,m6,m7,
 
 ```
 
-### Model m5
+### Model m2
 
-We have random age coefficients across all 28 districts.
+By accounting for age variability across all 28 districts using random effects, we find that our explanatory power increases over model m1.
 
 ```{r, echo=TRUE, results="asis"}
 
-kable(coef(m5)$district, digits=2,
+kable(coef(m2)$district, digits=2,
       col.names = c("(Intercept)","1.0","1.5","2.0",">2.0","age","1.0:age",
                     "1.5:age","2.0:age", ">2.0:age"))
 
@@ -1176,7 +1658,7 @@ kable(coef(m5)$district, digits=2,
 
 ```{r,echo=TRUE, results="asis"}
 
-summ(m5, confint=TRUE)
+summ(m2, confint=TRUE)
 
 ```
 
@@ -1192,7 +1674,7 @@ The plot looks pretty random so we probably didn't violate this assumption.
 ```{r, fig.cap = "Linearity check for Age of Condominium", echo=TRUE}
 
 m5_age_linearity <- plot(train_set$condo_age,
-                         resid(m5),
+                         resid(m2),
                          xlab="Age of Condominium",
                          ylab="Median Rental Rate") 
 
@@ -1206,7 +1688,7 @@ From this plot, we can see that the initial spread appear random around the cent
 
 ```{r, fig.cap = "Residual plot for m2 model"}
 
-plot(m5)
+plot(m2)
 
 ```
 
@@ -1218,7 +1700,7 @@ There is some deviation from from the expected normal line towards the tails, bu
 
 ```{r, fig.cap="QQ plot of model m2"}
 
-qqmath(m5)
+qqmath(m2)
 
 ```
 
@@ -1232,14 +1714,14 @@ The residual plot also show randomness around the centered line indicating that 
 
 ```{r, echo=TRUE, warning=FALSE, message=FALSE}
 
-simulationOutput <- simulateResiduals(fittedModel=m5, n=250,refit=T,seed=123)
+simulationOutput <- simulateResiduals(fittedModel=m2, n=250,refit=T,seed=123)
 plot(simulationOutput)
 
 ```
 
 ### Model validation
 
-Let's use the test dataset we have obtained earlier and try to fit it using our best model m5
+Let's use the test dataset we have obtained earlier and try to fit it using our best model m2.
 
 Root Mean Square Error (RMSE) is the standard deviation of the residuals (prediction errors). It is a measure of how spread out these residuals are. In other words, it tells you how concentrated the data is around the line of best fit.
 
@@ -1247,425 +1729,93 @@ We can see that our test set has a lower RMSE value than our training set which 
 
 ```{r, echo=TRUE}
 
-m5_pred_train  <- exp(predict(m5, train_set))
-m5_error_train <- m5_pred_train - train_set$median_rent
-m5_RMSE_train  <- sqrt(mean(m5_error_train^2))
-m5_RMSE_train
+modelr::rmse(m2,train_set)
 
 ```
 
 ```{r, echo=TRUE}
 
-m5_pred_test  <- exp(predict(m5, test_set))
-m5_error_test <- m5_pred_test - test_set$median_rent
-m5_RMSE_test  <- sqrt(mean(m5_error_test^2))
-m5_RMSE_test
+modelr::rmse(m2,test_set)
 
 ```
 
-## Hierarchical Clustering
+#### Cross-validation
 
-Hierarchical clustering, also known as hierarchical cluster analysis, is an algorithm that groups similar objects into groups called clusters. The endpoint is a set of clusters, where each cluster is distinct from each other cluster, and the objects within each cluster are broadly similar to each other.
+While spliting our dataset into training and testing set allow us to check our model fit over new data, there are some risks that a few outliers may render our fit differently, resulting in overfitting.
 
-We hope to use this clustering method to rediscover new groupings that may fit our model better.
-
-```{r, echo=TRUE}
-
-# Hierarchical Clustering with R Base Method
-# Computes and returns the distance matrix computed by using the 
-# specified distance measure to compute the distances between the 
-# rows of a data matrix.
-#
-# This must be one of "euclidean", "maximum", "manhattan", "canberra", 
-# "binary" or "minkowski". 
-# Any unambiguous substring can be given.
-#
-
-# Scaling and Centering of numeric variables 
-df <- cluster_df %>%
-  dplyr::select(avg_rent, x_coord, y_coord) %>%
-  mutate_all(list(scale))
-
-# Usual distance between the two vectors (2 norm aka L_2), sqrt(sum((x_i - y_i)^2)).
-d <- dist(df, method = "euclidean")
-
-# Hierarchical clustering 
-# Distance measure: one of "ward.D", "ward.D2", "single", "complete", 
-# "average" (= UPGMA), "mcquitty" (= WPGMA), "median" (= WPGMC) or 
-# "centroid" (= UPGMC).
-res_ward <- hclust(d, method = "ward.D" )
-res_ward2 <- hclust(d, method = "ward.D2" )
-res_single <- hclust(d, method = "single" )
-res_complete <- hclust(d, method = "complete" )
-res_avg <- hclust(d, method = "average" )
-res_centroid <- hclust(d, method = "centroid" )
-
-```
-
-### Cluster Dendrogram
-
-We created 6 cluster dendrograms based on different distance measuring algorithms
-
-* ward.D
-* ward.D2
-* single
-* complete
-* average
-* centroid
-
-We can see that Ward.D and Ward.D2 method generated the most clearly defined cluster. 
-<br><br>
-
-```{r, fig.cap="Cluster Dendrogram plot"}
-
-# Plot the obtained dendrogram
-par(mfrow = c(2, 3))
-par(mar=c(1,5,1,1))
-plot(res_ward, cex = 0.7, hang = -1, main="ward.D")
-plot(res_ward2, cex = 0.7, hang = -1, main="ward.D2")
-plot(res_single, cex = 0.7, hang = -1, main="single")
-plot(res_complete, cex = 0.7, hang = -1, main="complete")
-plot(res_avg, cex = 0.7, hang = -1, main="average")
-plot(res_centroid, cex = 0.7, hang = -1, main="centroid")
-
-```
-
-```{r, echo=FALSE, include=FALSE}
-
-# NbClust for computing about 30 indexes at once, in order to find the 
-# optimal number of clusters.
-
-# NbClust package provides 30 indices for determining the number of clusters 
-# and proposes to user the best clustering scheme from the different results 
-# obtained by varying all combinations of number of clusters, distance measures, 
-# and clustering methods.
-
-par(mar=c(5,5,1,1))
-res_nbclust <- NbClust(df, distance = "euclidean", 
-               min.nc = 2,
-               max.nc = 15, 
-               method = "ward.D2", 
-               index = "all")
-
-# Conclusion: According to the majority rule, the best number of clusters is  3 
-
-res_nbclust$All.index
-# Values of indices for each partition of the dataset obtained with a number 
-# of clusters between min.nc and max.nc.
-
-res_nbclust$Best.nc
-# Best number of clusters proposed by each index and the corresponding index value.
-
-res_nbclust$All.CriticalValues
-# Critical values of some indices for each partition obtained with a number of clusters between min.nc and max.nc.
-
-res_nbclust$Best.partition
-# Partition that corresponds to the best number of clusters
-
-grp_res <- res_nbclust$Best.partition
-#table(grp_res)
-#glimpse(grp_res)
-
-# Cut tree into 3 groups (clusters)
-grp <- cutree(res_complete, k = 3)
-
-```
-
-<br>
-According to the majority rule when using NbClust, the best number of clusters is 3.
-
-```{r, echo=TRUE, fig.cap="Plot using NbClust for determining the best cluster groupings"}
-
-fviz_nbclust(res_nbclust, ggtheme = theme_minimal())
-
-```
-
-#### Elbow method
-
-Elbow suggest optimal 3 cluster.
-
-```{r, echo=TRUE, warning=FALSE, message=FALSE}
-
-# factoextra to determine the optimal number clusters for a given clustering 
-# methods and for data visualization.
-# fviz_nbclust(x, FUNcluster = kmean, method = c("silhouette", "wss", "gap_stat"))
-
-# Elbow method
-fviz_nbclust(cluster_df, FUN = hcut, 
-             method = "wss", # "wss" (for total within sum of square) 
-             diss = d) +
-  geom_vline(xintercept = 3, linetype = 2) +
-  labs(subtitle = "Elbow method")
-
-```
-
-#### Silhouette method
-
-Silhouette suggest optimal 5 cluster.
-
-```{r, echo=TRUE, warning=FALSE, message=FALSE}
-
-# Silhouette method
-fviz_nbclust(cluster_df, FUN = hcut, 
-             method = "silhouette") +
-  labs(subtitle = "Silhouette method")
-
-```
-
-We can visualize using factoextra by cutting into 3 groups by color.
-
-```{r, echo=TRUE, fig.cap="Plot of the 3 cluster group using factoextra"}
-
-par(mar=c(1,5,5,5))
-
-fviz_dend(res_complete, k = 3, # Cut in 3 groups
-          cex = 0.8, # label size
-          k_colors = c("#2E9FDF", "#00AFBB", "#E7B800"),
-          color_labels_by_k = TRUE, # color labels by groups
-          rect = TRUE, # Add rectangle around groups
-          show_labels = FALSE,
-          labels_track_height = 0.1,
-          main="")
-
-```
-
-```{r, results="asis"}
-
-# Put cluster name to the original dataset
-df_grp <- data.frame(cluster_df, grp)
-#glimpse(df_grp)
-
-# Profiling the clusters
-# Statistic summary of Cluster Group
-clus_profile <- data.frame (
-  df_grp %>% group_by(Cluster = grp) %>%
-  summarise(Freq = n(),
-            mean_rent = mean(avg_rent),
-            sd_rent = sd(avg_rent),
-            mean_age = mean(avg_age),
-            sd_age = sd(avg_age))
-)
-
-kable(clus_profile, digits=2)
-
-df_grp$range[df_grp$grp == 3] <- "High"
-df_grp$range[df_grp$grp == 2] <- "Medium"
-df_grp$range[df_grp$grp == 1] <- "Low"
-
-```
-
-```{r, echo=FALSE, include=FALSE}
-
-# Cross Tabulation to compare cluster groups vs districts
-crosstab <- data.frame (
-  with(df_grp, tapply(avg_rent, 
-                      list(row_district = district,
-                           col_cluster = range),
-                           mean))
-)
-round(crosstab, 2)
-
-# Add mean and sd of median_rent for each district in each group
-avg_table <- as_tibble(df_grp %>% 
-                        group_by(grp, district) %>%
-                        summarise(avg = round(mean(avg_rent),2),
-                                  sd = round(sd(avg_rent),2)))
-
-glimpse(avg_table)
-
-df_grp2 <- left_join(df_grp, avg_table)
-
-# Add median coordinates for each districts
-district_table <- as_tibble(df_grp %>% 
-                            group_by(district) %>%
-                            summarise(xloc_median = median(x_coord),
-                                      yloc_median = median(y_coord)))
-glimpse(district_table)
-
-df_grp2 <- left_join(df_grp2, district_table)
-
-glimpse(df_grp2)
-
-# Reorder factet_grid
-df_grp2$region <- factor(df_grp2$region, 
-                         levels = c("CCR", "RCR", "OCR"), 
-                         ordered = T)
-
-df_grp2 <- df_grp2 %>%
-  arrange(range,desc(avg))
-
-```
-
-### Visualise Heat Map
-
-```{r, echo=TRUE, fig.height=8, fig.cap="Heat map plot with respect to cluster and region group"}
-
-# Visualise Heat Map
-df_grp2 %>% 
-  ggplot(aes(x = district, y = range, fill = avg_rent)) +
-  geom_tile(col = "white") +
-  scale_fill_distiller("Median Rent Rates", palette = "Spectral") +
-  geom_text(aes(label = paste("m", avg, "sd", sd, sep = "\n")), size = 3) +
-  scale_y_discrete(limits=c("Low", "Medium", "High")) +  
-  facet_grid(. ~ region, scale = "free", space ="free") +
-  theme(legend.position = "bottom",
-        plot.title = element_text(face = "bold", hjust = 0.5),
-        plot.subtitle = element_text(hjust = 0.5)) +
-  labs(title = "Result of Hierarchical Clustering",
-       subtitle = "Not all Condo Rent Rates in the same region are the same",
-       x="District Number", 
-       y="Median Rent Rate Range",
-       caption = "Source: Urban Redevelopment Authority (URA)") 
-
-```
-
+Cross-validation gives us multiple estimates of out-of-sample error, rather than a single estimate, henceforth increase the confidence in our model fit.
 
 ```{r}
 
-# Visualise Lollipop Chart
-# Looking into District 10, 11
+train_set_s <- train_set %>%
+  dplyr::select(median_rent,condo_age,mrt_dist_f,district) %>%
+  as_tibble()
 
-plot_Lollipop_district <- function(dist){
-  
-  cols <- c("High" = "red", "Medium" = "green", "Low" = "deepskyblue4")
-  
-  df_grp2_district <- df_grp2 %>% 
-  filter(district == dist) %>%
-  group_by(condo_name, range) %>%
-  summarise(avg_condo = mean(avg_rent),
-            avg_condo_age = mean(avg_age))
-
-  # Order
-  df_grp2_district$condo_name_r <- reorder(df_grp2_district$condo_name,
-                                           df_grp2_district$avg_condo)
-
-  df_grp2_district %>% 
-      ggplot(aes(x = condo_name_r, y = avg_condo, col = range)) +
-      geom_segment(aes(x = condo_name_r,
-                       xend = condo_name_r,
-                       y = avg_condo,
-                       yend = mean(avg_condo),
-                       col = range)) +
-  
-  geom_point(aes(size = avg_condo_age)) +
-  scale_size(name = "Relative Age of Condo") +
-  
-  geom_text(aes(label = round(avg_condo, 2)), 
-            col = "black", 
-            size = 3,
-            hjust = -0.5,
-            fontface = "bold") +
-  geom_hline(aes(yintercept = mean(avg_condo))) +
-  
-  scale_color_manual(name = "Cluster Group",
-                     values = cols,
-                     limits = c("High", "Medium", "Low")) +
- 
-  labs(title = paste("Listing of Condo in District ", dist, sep = ""),
-       subtitle = "Size of Dot Relative to Age of Condo",
-       x="", 
-       y="",
-       caption = "Source: Urban Redevelopment Authority (URA)") +
-   theme(legend.position = "bottom",
-        axis.text = element_text(size = rel(.90)),
-        plot.title = element_text(face = "bold", hjust = 0.5),
-        plot.subtitle = element_text(hjust = 0.5)) +
-  
-  coord_flip() 
-}
-
-
+test_set_s <- test_set %>%
+  dplyr::select(median_rent,condo_age,mrt_dist_f,district) %>%
+  as_tibble()
 
 ```
 
-#### District 10
+##### k-Fold Cross-Validation
 
-```{r, fig.height=8}
+This procedure has a parameter called number that refers to the number of groups that a given data sample is to be split into. As such, the procedure is often called k-fold cross-validation. When a specific value for k is chosen such as k=10, it becomes a 10-fold cross-validation.
 
-plot_Lollipop_district("10")
+```{r, echo=TRUE, fig.cap="Diagnostic plot for cv1"}
 
-```
+cv1 <- train(
+  median_rent ~ ., 
+  data = train_set_s,
+  method = "glm",
+  trControl = trainControl(
+    method = "repeatedcv", number = 10,
+    repeats = 5, verboseIter = TRUE
+  )
+)
 
-#### District 11
-
-```{r, fig.height=8}
-
-plot_Lollipop_district("11")
-
-```
-
-```{r, echo=FALSE, include=FALSE}
-
-# Get Singapore map data
-sg <- raster::getData(country="SGP", level=0) 
-plot(sg)
-#glimpse(sg)
-
-# To retrieve or describe the CRS
-proj4string(sg)
-
-sg_map <- fortify(sg)
-#glimpse(sg_map)
-
-sg_map %>% 
-  ggplot() +
-  geom_map(data=sg_map, map=sg_map, 
-           aes(x=long, y=lat, map_id=id),
-           col = "deepskyblue4", fill = "grey") 
-
-# Get CRS reference from http://spatialreference.org/ref/epsg/3414/
-
-# To transform from one CRS to another:
-sg_svy21 <- spTransform(sg, CRS("+init=epsg:3414"))
-
-sg_map <- fortify(sg_svy21)
-glimpse(sg_map)
-
-sg_map %>% 
-  ggplot() +
-  geom_map(data=sg_map, map=sg_map, 
-           aes(x=long, y=lat, map_id=id),
-           col = "deepskyblue4", fill = "white") 
-
-sgmap_p <- geom_map(data=sg_map, map=sg_map, 
-           aes(x=long, y=lat, map_id=id),
-           col = "deepskyblue4", fill = "white")
+plot_fit(cv1$finalModel)
+print(cv1)
 
 ```
 
-### Result of Hierarchical Clustering
+We can see that the machine learning model AIC's score of 3702 matches quite closely with our m2 score of 3624. When fitted over new set of data, RMSE score is slightly better.
 
-```{r, echo=TRUE, fig.height=8, fig.width=10, fig.cap="3 Clustered Range of Median Rent Rates"}
+```{r, echo=TRUE}
 
-df_grp2_p <- ggplot(data = df_grp2, aes(x = x_coord, y = y_coord))
+# AIC 
+cv1_model <- cv1$finalModel
+cv1_model$aic
 
-df_grp2_p +
-  sgmap_p +
-  geom_point(aes(col = range),
-             shape = 17,
-             size = 3) +
-  scale_colour_discrete(name = "Range of Median Rent Rates", 
-                        limits = c("High", "Medium", "Low")) +
-  
-  geom_text(aes(x = xloc_median, y = yloc_median, label = district), 
-            col = "black",
-            size = 5) +
-  
-  labs(title = "3 Clustered Range of Median Rent Rates", 
-       caption = "Source: Urban Redevelopment Authority (URA)",
-       x="",
-       y="") +
-  
-  theme(plot.title = element_text(face = "bold", hjust = 0.5),
-        plot.subtitle = element_text(hjust = 0.5),
-        axis.text = element_blank(),
-        axis.ticks = element_blank(),
-        panel.grid = element_blank(),
-        panel.background = element_rect(fill = "lightcyan1"),
-        legend.position = "bottom") 
+modelr::rmse(cv1,train_set_s)
+modelr::rmse(cv1,test_set_s)
 
 ```
 
+##### Random Forest
+
+Random forest builds multiple decision trees and merges them together to get a more accurate and stable prediction.
+
+```{r, echo=TRUE}
+
+cv2 <- train(
+  median_rent ~ .,
+  tuneLength = 10,
+  data = train_set_s, method = "ranger",
+  trControl = trainControl(method = "cv", number = 5, verboseIter = TRUE)
+)
+
+```
+
+The final values used for the model was mtry = 26 where variance and extratrees have the lowest RMSE value. When we tested it on new data set, it has a slightly higher score but nonetheless still a close match.
+
+```{r, echo=TRUE}
+
+modelr::rmse(cv2,train_set_s)
+modelr::rmse(cv2,test_set_s)
+
+plot(cv2)
+
+```
 
 # Implications
 
