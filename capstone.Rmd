@@ -28,22 +28,22 @@ h1 { /* Header 1 */
 }
 
 h2 { /* Header 2 */
-  font-size: 20px;
+  font-size: 22px;
   color: DarkBlue;
 }
 
 h3 { /* Header 3 */
-  font-size: 18px;
+  font-size: 20px;
   color: DarkBlue;
 }
 
 h4 { /* Header 4 */
-  font-size: 16px;
+  font-size: 18px;
   color: DarkBlue;
 }
 
 h5 { /* Header 4 */
-  font-size: 14px;
+  font-size: 16px;
   color: DarkBlue;
 }
 
@@ -141,6 +141,10 @@ set.seed(123)
 # Retrieve our condo dataset from smur
 condo_dataset <- get_condo_dataset()
 
+# Re-order the region factors
+condo_dataset$region_l <-  factor(condo_dataset$region, 
+                                  levels=c("CCR", "RCR", "OCR"))
+
 # Split between train and test set
 condo_dataset <- condo_dataset %>% mutate(id = 1:nrow(condo_dataset))
 train_set <- sample_frac(condo_dataset, .75)
@@ -155,22 +159,6 @@ $\checkmark$ Please ensure that you have provided the same seed number in order 
 ## Transform
 
 ```{r, echo=TRUE}
-
-# Preparing for Clustering Analysis
-# Removing incomplete cases which casue problem to clustering results
-
-condo_dataset$region_l <-  factor(condo_dataset$region, 
-                                  levels=c("CCR", "RCR", "OCR"))
-
-condo_rent1c <- condo_dataset[complete.cases(condo_dataset),]
-
-cluster_df_grp<- condo_rent1c %>%
-  group_by(condo_name, district, region_l, x_coord, y_coord) %>%
-  summarise(avg_rent = mean(median_rent),
-            avg_age = mean(condo_age))
-
-#glimpse(cluster_df_grp)
-cluster_df <- as_tibble(cluster_df_grp)
 
 # Transform the mrt distance into category
 train_set$mrt_dist_f <- train_set$mrt_dist %>%
@@ -192,6 +180,16 @@ train_set$condo_age_f <- train_set$condo_age %>%
 # Mean Centering 
 train_set$median_rent_c <- scale(train_set$median_rent, scale = FALSE)
 train_set$condo_age_c   <- scale(train_set$condo_age, scale = FALSE)
+
+# Re-assigned to train_set
+cluster_df <- train_set
+
+# Scalling and Centering of numeric variables 
+df <- cluster_df %>%
+  dplyr::select(median_rent, x_coord, y_coord) %>%
+  mutate_all(list(scale))
+
+#glimpse(df)
 
 ```
 
@@ -257,6 +255,37 @@ for(i in 45:frames){
 ```
 
 ## Age of Condominium
+
+```{r Boxplot_Median Rental Rate vs Age of Condominium, echo=FALSE, fig.width=8, fig.height=6}
+
+train_set %>%
+  ggplot(aes(x = as.factor(condo_age), y = median_rent)) + 
+  geom_boxplot(varwidth = TRUE, fill = "darkolivegreen1") +
+  geom_hline(aes(yintercept = mean(median_rent)), 
+             colour = "red", size = 0.5, linetype = "dashed") +
+  labs(title = "Boxplot: Median Rental Rates vs Age of Condominium",
+       x = "Age of Condominium",
+       y = "Median Rental Rate/sqft") +
+  theme(plot.title = element_text(face = "bold")) +
+
+  annotate("text", x = 12, y = 8, 
+           col = "deepskyblue4", 
+           size = 4, 
+           hjust = 0, vjust = 1,
+           fontface = 4,
+           label = 
+"- Newer condo (<10yrs) median rental rate are above average red line
+- 1st year new condo charged the highest median rental rates
+- Older condo are comparatively cheaper than the newer ones
+- Lesser rental transactions for older condo (narrower width)"
+)
+
+
+```
+
+<br>
+Below is another boxplot but this time we split the age group into period of 5 years in between.
+
 We could see that there is an inverse relationship between the median rental rate and age of condo during the first 15 years. 
 
 Rental Rate remains relatively unchanged in the subsequent decade and it starts to buck the inverse trend during the period 26-30th year age.
@@ -269,28 +298,23 @@ table(train_set$condo_age_f)
 
 ```
 
-```{r, warning=FALSE,message=FALSE, fig.cap="Boxplot of Median Rental Rate/sqft vs Age of Condominium"}
+```{r, fig.height=7, warning=FALSE,message=FALSE, fig.cap="Boxplot of Median Rental Rate/sqft vs Age of Condominium"}
 
 train_set %>% 
   ggplot(aes(x=condo_age_f, 
              y=median_rent,
              group_by(condo_age_f))) +
   
-  geom_boxplot(varwidth = TRUE, fill = "white", notch = FALSE) +
-  
-  stat_summary(fun.data = mean_cl_boot, geom = "errorbar", colour = "red") + 
-  
+  geom_boxplot(varwidth = TRUE, aes(fill = condo_age_f), notch = FALSE) +
+  stat_summary(fun.data = mean_cl_boot, geom = "errorbar", colour = "red") +
   stat_summary(fun.y = mean, geom = "point", colour = "red") +
-  
   labs(x="Age of Condominium", 
        y="Median Rental Rate/sqft",
        caption = "Source: Urban Redevelopment Authority (URA)") +
-  
   theme(legend.position = "none",
         axis.text = element_text(size = rel(.90)),
         plot.title = element_text(face = "bold", hjust = 0.5),
         plot.subtitle = element_text(hjust = 0.5)) +
-
   annotate("text", 
            x = "26-30", 
            y = 4.5, 
@@ -303,7 +327,7 @@ train_set %>%
 
 ## MRT distance
 
-This plot seems to concur with the popular belief that if your property is located further away from MRT, it will become less attractive to users. However, some properties that are located more than 2 km away, appeared to have bucked the trend.
+The plot below seems to concur with the popular belief that if your property is located further away from MRT, it will become less attractive to users. However, some properties that are located more than 2 km away, appeared to have bucked the trend.
 
 Again, we are seeing the mean value to be higher than the median within the 2km MRT radius, which suggests that the distribution is skewing to the right.
 
@@ -314,14 +338,14 @@ table(train_set$mrt_dist_f)
 
 ```
 
-```{r, fig.cap="Boxplot of Median Rental Rate/sqft vs MRT distance"}
+```{r, fig.height=7, fig.cap="Boxplot of Median Rental Rate/sqft vs MRT distance"}
 
 train_set %>% 
   ggplot(aes(x=mrt_dist_f, 
              y=median_rent, 
              group_by(mrt_dist_f))) +
   
-  geom_boxplot(varwidth = TRUE, fill = "white", notch = FALSE) +
+  geom_boxplot(varwidth = TRUE, aes(fill=mrt_dist_f), notch = FALSE) +
   stat_summary(fun.data = mean_cl_boot, geom = "errorbar", colour = "red") + 
   stat_summary(fun.y = mean, geom = "point", colour = "red") +
   labs(x="MRT distance (km)", 
@@ -343,23 +367,107 @@ train_set %>%
 
 ## Regions/Districts
 
+```{r ScatterPlot_Median Rental Rate vs Age of Condominium, echo=FALSE, fig.width=8, fig.height=6}
+
+train_set %>%
+  ggplot(aes(x = condo_age, y = median_rent)) +
+  geom_point(aes(shape = region, col = region), 
+             position = "jitter",
+             size = 2,
+             alpha = 0.5
+             ) +
+  geom_smooth(aes(col = region), 
+              method = "loess", se = F, size = 1) +
+  labs(title = "Median Rent rate vs Age of Condominium by Regions", 
+       x = "Age of Condominium",
+       y = "Median Rental Rate/sqft"
+  ) +
+  scale_colour_discrete(name = "Regions",
+                        breaks = c("CCR", "RCR", "OCR")) +
+  scale_shape_manual(name = "Regions", 
+              breaks = c("CCR", "RCR", "OCR"),
+              values = c(1, 2, 0)) +
+  theme(legend.position = "bottom",
+        plot.title = element_text(face = "bold")) +
+
+  annotate("text", x = 15, y = 8, 
+           col = "deepskyblue4", 
+           size = 4, 
+           hjust = 0, vjust = 1,
+           fontface = 4,
+           label = 
+"- Median rental rate are comparatively highest for CCR,
+   followed by RCR and condo in OCR asked for the lowest.
+- Inverse non-linear relationship between median rental 
+  rate and condo age. Older condo are comparatively 
+  cheaper than the newer ones."
+)
+
+# Median rental rate are comparatively higher in CCR, then RCR and condo in OCR asked for lowest.
+# Inverse non-linear relationship between median rental rate and condo age. Older condo are comparatively cheaper than newer ones.
+
+```
+
+```{r ScatterPlot_Median Rental Rate vs Distance from MRT, echo=FALSE, fig.width=8, fig.height=6}
+
+train_set %>%
+  ggplot(aes(x = mrt_dist, y = median_rent)) +
+  geom_point(aes(shape = region, col = region), 
+             position = "jitter",
+             size = 2,
+             alpha = 0.5
+  ) +
+  geom_smooth(aes(col = region), 
+              method = "loess", se = F, size = 1) +
+  labs(title = "Median Rent rate vs Distance from MRT by Regions", 
+       x = "Distance from MRT",
+       y = "Median Rental Rate/sqft"
+  ) +
+  scale_colour_discrete(name = "Regions",
+                        breaks = c("CCR", "RCR", "OCR")) +
+  scale_shape_manual(name = "Regions", 
+                     breaks = c("CCR", "RCR", "OCR"),
+                     values = c(1, 2, 0)) +
+  theme(legend.position = "bottom",
+        plot.title = element_text(face = "bold")) +
+  
+  annotate("text", x = 1.5, y = 8, 
+           col = "deepskyblue4", 
+           size = 4, 
+           hjust = 0, vjust = 1,
+           fontface = 4,
+           label = 
+"- Median rental rates of condo in CCR has strong 
+negative correlation with distance from MRT.
+- There are inverse non-linear relationship between 
+median rental rate and distance from MRT. 
+- Condo in RCR and OCR show slight increase in 
+median rental rates beyond 1.5km from MRT."
+  )
+
+# Median rental rates of condo in CCR has strong negative correlation with distance from MRT.
+# There are inverse non-linear relationship between median rental rate and distance from MRT. 
+# Condo in RCR and OCR show slight increase in median rental rates beyond 1.5km from MRT.
+
+```
+
 ### Boxplot between Regions & Districts
 
-In this boxplot, we could see much variability of rental rates between each regions. It looks more pronounced between CCR and OCR - No overlap of the confidence intervals between CCR and OCR
+In this boxplot, we could see much variability of rental rates between each regions. It looks more pronounced between CCR and OCR - No Overlap of the confidence intervals between CCR and OCR
 
 Within districts, the differences appeared to be more significant in CCR and RCR.
 There is less variability in OCR as indicated by their overlapping confidence intervals in most districts.
 
-```{r, echo=TRUE, fig.cap="Median Rental Rates vs District Location of Condominium by Region"}
+```{r, echo=TRUE, fig.height=7, fig.width=10, fig.cap="Median Rental Rates vs District Location of Condominium by Region"}
 
 train_set %>%
-  ggplot(aes(x = district, y = median_rent, fill = region)) + 
+  ggplot(aes(x = district, y = median_rent, fill = region_l)) + 
   geom_boxplot(stat = "boxplot", varwidth = TRUE, notch = FALSE) +
   stat_summary(fun.data = mean_cl_boot, geom = "errorbar", colour = "red") +
   stat_summary(fun.y = mean, geom = "point", colour = "red") +
   labs(x = "District Location",
        y = "Median Rental Rate/sqft") +
-  facet_wrap(~region, scale = "free_x") +
+  facet_wrap(~region_l, scale = "free_x") +
   theme(legend.position = "none",
         axis.text = element_text(size = rel(.90)),
         plot.title = element_text(face = "bold", hjust = 0.5),
@@ -614,7 +722,7 @@ We would therefore need to take into account of these variability when we start 
 
 Hierarchical clustering, also known as hierarchical cluster analysis, is an algorithm that groups similar objects into groups called clusters. The endpoint is a set of clusters, where each cluster is distinct from each other cluster, and the objects within each cluster are broadly similar to each other.
 
-We hope to use this clustering method to rediscover new groupings that may fit our model better.
+We hope to use this clustering method to rediscover new groupings that may provides new insights to our study of the predictive model.
 
 ```{r, echo=TRUE}
 
@@ -627,11 +735,6 @@ We hope to use this clustering method to rediscover new groupings that may fit o
 # "binary" or "minkowski". 
 # Any unambiguous substring can be given.
 #
-
-# Scaling and Centering of numeric variables 
-df <- cluster_df %>%
-  dplyr::select(avg_rent, x_coord, y_coord) %>%
-  mutate_all(list(scale))
 
 # Usual distance between the two vectors (2 norm aka L_2), sqrt(sum((x_i - y_i)^2)).
 d <- dist(df, method = "euclidean")
@@ -713,8 +816,10 @@ grp_res <- res_nbclust$Best.partition
 #table(grp_res)
 #glimpse(grp_res)
 
+res_final <- hclust(d, method = "ward.D2" )
+
 # Cut tree into 3 groups (clusters)
-grp <- cutree(res_complete, k = 3)
+grp <- cutree(res_final, k = 3)
 
 ```
 
@@ -748,7 +853,7 @@ fviz_nbclust(cluster_df, FUN = hcut,
 
 ### Silhouette method
 
-Silhouette suggest optimal 5 cluster.
+Silhouette suggest optimal 4 cluster.
 
 ```{r, echo=TRUE, warning=FALSE, message=FALSE}
 
@@ -780,28 +885,26 @@ fviz_dend(res_complete, k = 3, # Cut in 3 groups
 
 ```{r, results="asis"}
 
-# Put cluster name to the original dataset
+# Put cluste name to the original dataset
 df_grp <- data.frame(cluster_df, grp)
 #glimpse(df_grp)
 
 # Profiling the clusters
 # Statistic summary of Cluster Group
-clus_profile <- data.frame (
+clus.profile <- data.frame (
   df_grp %>% group_by(Cluster = grp) %>%
-  summarise(Freq = n(),
-            mean_rent = mean(avg_rent),
-            sd_rent = sd(avg_rent),
-            mean_age = mean(avg_age),
-            sd_age = sd(avg_age))
+    summarise(Freq = n(),
+              mean_rent = mean(median_rent),
+              sd_rent = sd(median_rent))
 )
 
 ```
 
-```{r, echo=FALSE, include=FALSE}
+```{r, echo=FALSE, include=FALSE, message=FALSE, warning=FALSE}
 
 # Get Singapore map data
 sg <- raster::getData(country="SGP", level=0) 
-plot(sg)
+#plot(sg)
 #glimpse(sg)
 
 # To retrieve or describe the CRS
@@ -836,15 +939,15 @@ sgmap_p <- geom_map(data=sg_map, map=sg_map,
 
 ```
 
-We could see that cluster 3 has the highest mean rental score follow by cluster 2 and 1.
-This is very similar to our most expensive region CCR, follow by RCR and OCR.
+We could see that cluster 1 has the highest mean rental rate follow by cluster 3 and 2.
 
 ```{r}
-kable(clus_profile, digits=2)
 
-df_grp$range[df_grp$grp == 3] <- "High"
-df_grp$range[df_grp$grp == 2] <- "Medium"
-df_grp$range[df_grp$grp == 1] <- "Low"
+kable(clus.profile, digits = 2)
+
+df_grp$range[df_grp$grp == 1] <- "High"
+df_grp$range[df_grp$grp == 3] <- "Medium"
+df_grp$range[df_grp$grp == 2] <- "Low"
 
 ```
 
@@ -852,28 +955,30 @@ df_grp$range[df_grp$grp == 1] <- "Low"
 
 # Cross Tabulation to compare cluster groups vs districts
 crosstab <- data.frame (
-  with(df_grp, tapply(avg_rent, 
+  with(df_grp, tapply(median_rent, 
                       list(row_district = district,
                            col_cluster = range),
-                           mean))
+                      mean))
 )
 round(crosstab, 2)
 
-# Add mean and sd of median_rent for each district in each group
-avg_table <- as_tibble(df_grp %>% 
-                        group_by(grp, district) %>%
-                        summarise(avg = round(mean(avg_rent),2),
-                                  sd = round(sd(avg_rent),2)))
+
+# Add mean and sd of median_rent for each district is each group
+
+avg_table <- as.tibble(df_grp %>% 
+                         group_by(grp, district) %>%
+                         summarise(avg = round(mean(median_rent),2),
+                                   sd = round(sd(median_rent),2)))
 
 glimpse(avg_table)
 
 df_grp2 <- left_join(df_grp, avg_table)
 
 # Add median coordinates for each districts
-district_table <- as_tibble(df_grp %>% 
-                            group_by(district) %>%
-                            summarise(xloc_median = median(x_coord),
-                                      yloc_median = median(y_coord)))
+district_table <- as.tibble(df_grp %>% 
+                              group_by(district) %>%
+                              summarise(xloc_median = median(x_coord),
+                                        yloc_median = median(y_coord)))
 glimpse(district_table)
 
 df_grp2 <- left_join(df_grp2, district_table)
@@ -885,8 +990,8 @@ df_grp2$region <- factor(df_grp2$region,
                          levels = c("CCR", "RCR", "OCR"), 
                          ordered = T)
 
-df_grp2 <- df_grp2 %>%
-  arrange(range,desc(avg))
+#df_grp2 <- df_grp2 %>%
+#  arrange(range,desc(avg))
 
 ```
 
@@ -928,13 +1033,13 @@ df_grp2_p +
 
 We further created a heat map to compare the new cluster groupings with our original region groups.
 
-We observed that within CCR, there are area of overlaps between our new clusters. And the interesting districts are 10 and 11 which happen to be in our new cluster 1 (least expensive) but in the most expensive CCR region.
+We observed that within CCR, there are area of overlaps between our new clusters. And the interesting districts are 10 and 11 which happen to be in our new cluster 2 (least expensive) but in the most expensive CCR region.
 
 ```{r, echo=TRUE, fig.height=8, fig.cap="Heat map plot with respect to cluster and region group"}
 
 # Visualise Heat Map
 df_grp2 %>% 
-  ggplot(aes(x = district, y = range, fill = avg_rent)) +
+  ggplot(aes(x = district, y = range, fill = avg)) +
   geom_tile(col = "white") +
   scale_fill_distiller("Median Rent Rates", palette = "Spectral") +
   geom_text(aes(label = paste("m", avg, "sd", sd, sep = "\n")), size = 3) +
@@ -951,89 +1056,100 @@ df_grp2 %>%
 
 ```
 
-<br>
-Let's us take a closer look on district 10 and 11 using a lollipop chart.
+### District 05, 10 and 11
+
+Let's us take a closer look on district 05, 10 and 11 using a lollipop chart.
 
 ```{r}
 
 # Visualise Lollipop Chart
 # Looking into District 10, 11
 
-plot_Lollipop_district <- function(dist){
-  
-  cols <- c("High" = "red", "Medium" = "green", "Low" = "deepskyblue4")
+cols <- c("High" = "red", "Medium" = "green", "Low" = "deepskyblue4")
+
+lollipop <- function (x) {
   
   df_grp2_district <- df_grp2 %>% 
-  filter(district == dist) %>%
-  group_by(condo_name, range) %>%
-  summarise(avg_condo = mean(avg_rent),
-            avg_condo_age = mean(avg_age))
-
+    filter(district == x) %>%
+    group_by(condo_name, range) %>%
+    summarise(avg_condo = mean(median_rent),
+              avg_condo_age = mean(condo_age))
+  
   # Order
   df_grp2_district$condo_name_r <- reorder(df_grp2_district$condo_name,
                                            df_grp2_district$avg_condo)
-
+  
   df_grp2_district %>% 
-      ggplot(aes(x = condo_name_r, y = avg_condo, col = range)) +
-      geom_segment(aes(x = condo_name_r,
-                       xend = condo_name_r,
-                       y = avg_condo,
-                       yend = mean(avg_condo),
-                       col = range)) +
+    ggplot(aes(x = condo_name_r, y = avg_condo, col = range)) +
+    geom_segment(aes(x = condo_name_r,
+                     xend = condo_name_r,
+                     y = avg_condo,
+                     yend = mean(avg_condo),
+                     col = range)) +
+    
+    
+    geom_point(aes(size = avg_condo_age)) +
+    scale_size(name = "Relative Age of Condo") +
+    
+    geom_text(aes(label = round(avg_condo, 2)), 
+              col = "black", 
+              size = 3,
+              hjust = -0.5,
+              fontface = "bold") +
+    geom_hline(aes(yintercept = mean(avg_condo))) +
+    
+    scale_color_manual(name = "Cluster Group",
+                       values = cols,
+                       limits = c("High", "Medium", "Low")) +
+    
+    labs(title = paste("Listing of Condo in District ", x, sep = ""),
+         subtitle = "Size of Dot Relative to Age of Condo",
+         x="", 
+         y="",
+         caption = "Source: Urban Redevelopment Authority (URA)") +
+    theme(legend.position = "bottom",
+          plot.title = element_text(face = "bold")) +
+    coord_flip()
   
-  geom_point(aes(size = avg_condo_age)) +
-  scale_size(name = "Relative Age of Condo") +
-  
-  geom_text(aes(label = round(avg_condo, 2)), 
-            col = "black", 
-            size = 3,
-            hjust = -0.5,
-            fontface = "bold") +
-  geom_hline(aes(yintercept = mean(avg_condo))) +
-  
-  scale_color_manual(name = "Cluster Group",
-                     values = cols,
-                     limits = c("High", "Medium", "Low")) +
- 
-  labs(title = paste("Listing of Condo in District ", dist, sep = ""),
-       subtitle = "Size of Dot Relative to Age of Condo",
-       x="", 
-       y="",
-       caption = "Source: Urban Redevelopment Authority (URA)") +
-   theme(legend.position = "bottom",
-        axis.text = element_text(size = rel(.90)),
-        plot.title = element_text(face = "bold", hjust = 0.5),
-        plot.subtitle = element_text(hjust = 0.5)) +
-  
-  coord_flip() 
 }
 
 ```
 
-### District 10
+<br>
+At city fringe (OCR), district 05 has few properties for potential buyers who wanted to find properties with higher rental rate such as PARC IMPERIAL, HERITAGE VIEW and HUNDRED TREES which have rental yield of more than $3.5 per sqft.
 
 ```{r, fig.height=8}
 
-plot_Lollipop_district("10")
-
-```
-
-### District 11
-
-```{r, fig.height=8}
-
-plot_Lollipop_district("11")
+lollipop("05")
 
 ```
 
 <br>
-Reviewing the geographical location, it appears that the highest and lowest rental condo are at opposite end of each District.
+At district 10, HOLLAND PEAK, TULIP GARDEN and BOTANIC GARDENS VIEW have rental yield rate of less than $2.6 per sqft.
+
+```{r, fig.height=8}
+
+lollipop("10")
+
+```
+
+<br>
+At district 11, HILLCREST ARCADIA and THE ARCADIA have rental yield of between $2.6-2.8 per sqft.
+
+```{r, fig.height=8}
+
+lollipop("11")
+
+```
+
+<br>
+Reviewing the geographical location, it appears that the highest and lowest rental yield for condo are at the opposite end for each district.
 
 ```{r echo=FALSE, message = FALSE, warning=FALSE,fig.width=10, fig.height=6}
 
-# Where is District 10, 11
-
-df_grp3 <- df_grp2 %>% filter(district == "10" |
+# Where is District 05,10,11
+df_grp3 <- df_grp2 %>% filter(district == "05"|
+                              district == "10"|
                               district == "11")  
 
 splitdata <- df_grp3 %>% dplyr::select(x_coord, y_coord, district)
@@ -1057,22 +1173,24 @@ df_grp3 %>%
   ggplot(aes(x = x_coord, y = y_coord)) +
   
   geom_polygon(data = combined_data,  
-                          aes(x = x_coord, y = y_coord, fill = district),  
-                          alpha = 1/2) +
+               aes(x = x_coord, y = y_coord, fill = district),  
+               alpha = 1/2) +
   
   geom_point(aes(col = range, shape = district), size = 3) +
   scale_shape(name = "Selected Districts") +
   scale_fill_discrete(name = "Selected Districts") +
   
   geom_text(aes(x = xloc_median, y = yloc_median, label = district), 
-                                    col = "black",
-                                    fontface = "bold",
-                                    size = 5) +
-
-  geom_text(aes(label = condo_name, size = avg_rent, fontface = avg_rent),
+            col = "black",
+            fontface = "bold",
+            size = 5) +
+  
+  geom_text(aes(label = condo_name), 
+            size = 3, 
+            fontface = 3,
             check_overlap = T) +
   guides(size = "none") +
-
+  
   scale_colour_discrete(name = "Range of Median Rent Rates", 
                         limits = c("High", "Medium", "Low")) +
   
@@ -1081,9 +1199,8 @@ df_grp3 %>%
        y = "Coordinates Y",
        caption = "Source: Urban Redevelopment Authority (URA)") +
   
-  theme(plot.title = element_text(face = "bold",hjust = 0.5),
+  theme(plot.title = element_text(face = "bold"),
         legend.position = "bottom") 
-
 
 ```
 
@@ -1101,7 +1218,7 @@ pl <- ggplot(data=train_set) +
                  y=median_rent), 
              position = 'jitter',
              alpha = 0.3, 
-             size = 1) +
+             size = 2) +
   
   labs(x="Age of Condominium", 
        y="Median Rental Rate/sqft",
@@ -1120,7 +1237,7 @@ Let’s plot the predicted median rental rate together with the observed value.
 pooled_model <- lm(median_rent ~ condo_age, data = train_set)
 pl + geom_line(aes(x=condo_age,
                    y=fitted(pooled_model)),
-               col="darkgreen",
+               col="deepskyblue4",
                size=1)
 
 ```
@@ -1149,6 +1266,7 @@ log_pooled_model <- lm(log(median_rent) ~ condo_age, train_set)
 summ(log_pooled_model, confint=TRUE)
 
 ```
+
 <br>
 If we plot the log transformed model, we will get slightly different fit (regression line).
 
@@ -1169,7 +1287,7 @@ pl + geom_line(aes(x=condo_age,
   
      scale_colour_manual(name = "model",
                          labels = c("pooled", "log_pooled"),
-                         values = c("darkgreen", "orange")) +
+                         values = c("deepskyblue4", "orange")) +
      annotate("text", 
                x = 48, 
                y = 2.2, 
@@ -1725,7 +1843,7 @@ Let's use the test dataset we have obtained earlier and try to fit it using our 
 
 Root Mean Square Error (RMSE) is the standard deviation of the residuals (prediction errors). It is a measure of how spread out these residuals are. In other words, it tells you how concentrated the data is around the line of best fit.
 
-We can see that our test set has a lower RMSE value than our training set which shows that our model provide a comparatively good fit.
+We can see that our RMSE value between our train and test set is quite similar implying that our model provide a comparatively good fit even for new data.
 
 ```{r, echo=TRUE}
 
@@ -1736,6 +1854,20 @@ modelr::rmse(m2,train_set)
 ```{r, echo=TRUE}
 
 modelr::rmse(m2,test_set)
+
+```
+
+Similarly, when we check the RMSE value using our best glm model (glm4), we get quite similar RMSE values between train and test dataset.
+
+```{r, echo=TRUE}
+
+modelr::rmse(glm4,train_set)
+
+```
+
+```{r, echo=TRUE}
+
+modelr::rmse(glm4,test_set)
 
 ```
 
@@ -1769,7 +1901,7 @@ cv1 <- train(
   method = "glm",
   trControl = trainControl(
     method = "repeatedcv", number = 10,
-    repeats = 5, verboseIter = TRUE
+    repeats = 5, verboseIter = FALSE
   )
 )
 
@@ -1778,7 +1910,7 @@ print(cv1)
 
 ```
 
-We can see that the machine learning model AIC's score of 3702 matches quite closely with our m2 score of 3624. When fitted over new set of data, RMSE score is slightly better.
+We can see that the machine learning model AIC's score of 3702 matches quite closely with our m2 score of 3624. When fitted over new set of data, RMSE score is slightly lower.
 
 ```{r, echo=TRUE}
 
@@ -1801,7 +1933,7 @@ cv2 <- train(
   median_rent ~ .,
   tuneLength = 10,
   data = train_set_s, method = "ranger",
-  trControl = trainControl(method = "cv", number = 5, verboseIter = TRUE)
+  trControl = trainControl(method = "cv", number = 5, verboseIter = FALSE)
 )
 
 ```
@@ -1817,9 +1949,42 @@ plot(cv2)
 
 ```
 
+# Interpretation of the Results
+
+From our data science project, we could observe the following three key findings:
+
+1.	Our TukeyHSD results show significant differences between multiple pairwise districts in rental rate rate. We introduce random effects to account for this variability at the district level by having varying intercepts and varying slope for condo age at each district. The Multilevel model (m2) has the best score among others based on R2, AIC and BIC.
+
+2. We also used Generalised Linear Model with log link family to account for variability at the district level. This model (glm4) has shown to be capable of fitting new data as we have quite similar RMSE value between our train and test dataset.
+
+2. We further apply Machine Learning using K-Fold and Random Forest method for our cross validation. K-Fold method has similar AIC score compared to our m2 whereas Random Forest has a higher R2 score. Both our trained predictive models performed equally well when we used RMSE as a benchmark for goodness of fit over test data. 
+
 # Implications
 
+We had looked at the relationship of rental rate with the Condo location and we discovered that, statistically, we can still find cheaper rent rates in expensive region like CCR. 
+
+Similarly, for property buyers who wanted to find higher rental yields, they can look at district 05 which is outside of central region but has some properties that has a yield rate of more than $3.5 per sqft. 
+
+In a boxplot for rent vs age, condo in OCR region are mostly more that 10 years and it could be mostly those Executive Condominium ("EC") that passed the mandatory "Minimum Occupancy Rate" of 5 years and put out to market for rent. This could mean why we see a drop in rental rate for condo above 10 years.
+
+
 # Limitations and Future Directions
+
+Our analysis are focusing on transacted condo rental rates that happens during the 3 years from 2015 to 2017 to analyse for the significance of relationship of the rental rates with the age of condo, distance from MRT and its locations. It cannot determine if a causal relationship exist between the location, age, distance from MRT or rental rates.
+
+We acknowledge that the global and local economic conditions play significant influence on the movement of Singapore property rental market, in particular, the movement of motgage interest rates, government's properties cooling measure and the influx of foreign talents staying in Singapre that drive the properties' demand.
+
+Our lollipop function provides a holistic way for users to view rental rate in each district with respect to the age of the property. This can act as a useful benchmark for bargain hunters or property buyers when deciding to rent/buy a property in a particular district. It has the potential to develop further using Shiny into a web tool, to be used by property agents when marketing new properties to potential owners.
+
+
+# References
+
+* https://www.r-bloggers.com/visualising-residuals/
+* https://r4ds.had.co.nz/explore-intro.html
+* https://www.r-pkg.org/pkg/jtools
+* https://www.andrew.cmu.edu/user/achoulde/94842/lectures/lecture10/lecture10-94842.html
+* https://rstudio-pubs-static.s3.amazonaws.com/78961_fe5b5c6a77f446eca899afbb32bd1dc7.html
+
 
 # Appendix
 
