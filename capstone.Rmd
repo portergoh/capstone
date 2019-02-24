@@ -1067,7 +1067,7 @@ df_grp2 %>%
 
 ### District 05, 10 and 11
 
-Let's us take a closer look on district 05, 10 and 11 using a lollipop chart.
+Let's take a closer look at district 05, 10 and 11 using a lollipop chart.
 
 ```{r}
 
@@ -1151,7 +1151,7 @@ lollipop("11")
 ```
 
 <br>
-Reviewing the geographical location, it appears that the highest and lowest rental yield for condo are at the opposite end for each district.
+Reviewing the geographical location, it appears that the highest and lowest rental yield for condo are at the opposite end of each district.
 
 ```{r echo=FALSE, message = FALSE, warning=FALSE,fig.width=10, fig.height=7}
 
