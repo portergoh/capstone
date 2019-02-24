@@ -101,11 +101,11 @@ All web scaping routines are consolidated into smur package for easy access in t
 
 R source code is also available in github for reference
 
-  * https://github.com/portergoh/capstone  
+  * https://github.com/portergoh/capstone
 
 # Import
 
-```{r setup, echo=TRUE, warning=FALSE, message=FALSE}
+```{r setup, echo=TRUE, warning=FALSE, message=FALSE, comment=FALSE}
 
 knitr::opts_chunk$set(fig.width=10, 
                       fig.align='center', 
@@ -120,7 +120,8 @@ if (!require("pacman")) install.packages("pacman")
 p_load(devtools,bookdown,tidyverse,knitr,modelr,scatterplot3d,
        gifski,ggpubr,jtools,broom,huxtable,lme4,sjPlot,
        gridExtra,lattice,DHARMa,rsq,summarytools,GGally,
-       NbClust,factoextra,raster,rgdal,sp,proto,e1071,ranger,caret)
+       NbClust,factoextra,raster,rgdal,sp,proto,e1071,
+       ranger,caret,ggstance)
 
 # Install our custom built smur package which contains the condo dataset.
 # Data collection routines are packed into smur package for easy access 
