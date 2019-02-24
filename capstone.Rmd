@@ -68,7 +68,7 @@ It is widely acknowledged that the rental price rate per square feet (sq.ft) is 
 
 Amongst the various driving forces of the rental rate for private residential property, we would like to establish some useful metrics that could help to provide a measure for the expected rental rate in different locations. These analysis results can be used as benchmark information for house hunters during their search through the internet listing to rent their ideal home.
 
-We will explore the relationship of non-landed private residential properties rental rates using these 3 metrices to build our model.
+We will explore the relationship of non-landed private residential properties rental rates using these 3 metrices to build our predictive model.
 
 * Age of the properties derived from the TOP year
 * Location of the properties based on District and Region
@@ -1115,7 +1115,6 @@ lollipop <- function (x) {
 
 ```
 
-<br>
 At city fringe (OCR), district 05 has few properties for potential buyers who wanted to find properties with higher rental rate such as PARC IMPERIAL, HERITAGE VIEW and HUNDRED TREES which have rental yield of more than $3.5 per sqft.
 
 ```{r, fig.height=8}
@@ -1145,7 +1144,7 @@ lollipop("11")
 <br>
 Reviewing the geographical location, it appears that the highest and lowest rental yield for condo are at the opposite end for each district.
 
-```{r echo=FALSE, message = FALSE, warning=FALSE,fig.width=10, fig.height=6}
+```{r echo=FALSE, message = FALSE, warning=FALSE,fig.width=10, fig.height=7}
 
 # Where is District 05,10,11
 df_grp3 <- df_grp2 %>% filter(district == "05"|
