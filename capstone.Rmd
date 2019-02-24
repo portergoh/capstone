@@ -69,7 +69,7 @@ For a person interested to make an investment in non-landed private apartment fo
 
 It is widely acknowledged that the rental price rate per square feet (sq.ft) is largely driven by the location of the property, and to certain, the economic condition of Singapore which influence the demand (e.g. inflow of foreigners into the country for employment) and supply (e.g. vacancy and newly developed unit available for let) of the private residential units for rental market. However, the expectation of the rental price is usually based on the recently transacted rental price of neighboring apartments.
 
-# Project's Objective
+## Project's Objective
 
 Amongst the various driving forces of the rental rate for private residential property, we would like to establish some useful metrics that could help to provide a measure for the expected rental rate in different locations. These analysis results can be used as benchmark information for house hunters during their search through the internet listing to rent their ideal home.
 
