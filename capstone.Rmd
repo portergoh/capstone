@@ -1,5 +1,5 @@
 ---
-title: "Data Analytics Specialist R Certification Program"
+title: "Analysis of Rental Rates of Private Non-landed Residential Properties in SG"
 author: "Brian Sum & Goh Khee Teck"
 date: "`r Sys.Date()`"
 output: 
@@ -18,13 +18,13 @@ output:
 body{ /* Normal  */
   font-size: 15px;
 }
-  
-h1, .h1, h2, .h2, h3, .h3 {
+
+.h1,.h2,.h3 { /* Margin */
   margin-top: 20px;
 }
 
 h1 { /* Header 1 */
-  font-size: 26px;
+  font-size: 24px;
 }
 
 h2 { /* Header 2 */
@@ -42,7 +42,7 @@ h4 { /* Header 4 */
   color: DarkBlue;
 }
 
-h5 { /* Header 4 */
+h5 { /* Header 5 */
   font-size: 16px;
   color: DarkBlue;
 }
@@ -56,7 +56,7 @@ div.blue { background-color:#e6f0ff; border-radius: 5px; padding: 15px;}
 div.green { background-color:#E0F1D9; border-radius: 5px; padding: 15px;}
 </style>
 
-# Capstone Project
+# Private Rental Analysis in SG
 
 For living or staying in Singapore, a major expenditure item for most people is the expenditure on residential properties. Majority of Singaporean and permanent residents owned and stayed in non-landed residential properties comprising of HDB developed housing units or privately developed residential properties funded by their monthly mortgage instalment payment. 
 
@@ -82,7 +82,7 @@ We will explore the relationship of non-landed private residential properties re
 
 If there is a significant correlation for the rental rate, age of the property, its location and distance from MRT, we will go further to establish a model to depict such a relationship. 
 
-# Dataset(s)
+## Dataset(s)
 
 Source of data for private residential properties’ rental transactions is obtained from Urban Redevelopment Authority (“URA”) website. URA publishes URA related data for public use and is available for download via API data service. The data service provides past 36 months (Year 2015 to 2017) rental transactions data with rental contracts submitted to IRAS for Stamp Duty assessment in JSON format:
 
@@ -96,14 +96,14 @@ Geospatial Data for Train Station Exit Point (updated Oct'17) from Land Transpor
 
   * https://www.mytransport.sg/content/dam/datamall/datasets/Geospatial/TrainStationExit.zip
 
-## Data Collection
+### Data Collection
 All web scaping routines are consolidated into smur package for easy access in this capstone project.
 
 R source code is also available in github for reference
 
   * https://github.com/portergoh/capstone
 
-# Import
+## Import
 
 ```{r setup, echo=TRUE, warning=FALSE, message=FALSE, comment=FALSE}
 
@@ -131,9 +131,9 @@ theme_set(theme_bw())
 
 ```
 
-# Tidy & Transform
+## Tidy & Transform
 
-## Partition dataset
+### Partition dataset
 
 We will split our main dataset (3,128) into 2 groups, 
 
@@ -167,7 +167,7 @@ test_set <- anti_join(condo_dataset, train_set, by = 'id')
 $\checkmark$ Please ensure that you have provided the same seed number in order to obtain the same result everytime you run your analysis.*
 </div>
 
-## Transform
+### Transform
 
 ```{r, echo=TRUE}
 
@@ -204,9 +204,9 @@ df <- cluster_df %>%
 
 ```
 
-# Data visualisation
+## Data visualisation
 
-## Exploratory Analysis
+### Exploratory Analysis
 
 We could see that the mean of all our 3 variables are higher than its median value, suggesting that our data is skewed to the right. The more pronounced being mrt distance which has a high kurtosis value of 5.42
 
@@ -230,7 +230,7 @@ train_set %>%
 
 ```
 
-## 3D scatter plot
+### 3D scatter plot
 
 We use the scatter 3D plot to allow us to visualise our variables better.
 Our dataset is quite unbalanced for each group of condos categorized by its proximity to MRT. Not much data points for level from 2km onwards.
@@ -265,7 +265,7 @@ for(i in 45:frames){
                           
 ```
 
-## Age of Condominium
+### Age of Condominium
 
 ```{r Boxplot_Median Rental Rate vs Age of Condominium, echo=FALSE, fig.width=8, fig.height=6}
 
@@ -336,7 +336,7 @@ train_set %>%
   
 ```
 
-## MRT distance
+### MRT distance
 
 The plot below seems to concur with the popular belief that if your property is located further away from MRT, it will become less attractive to users. However, some properties that are located more than 2 km away, appeared to have bucked the trend.
 
@@ -376,7 +376,7 @@ train_set %>%
 
 ```
 
-## Regions/Districts
+### Regions/Districts
 
 ```{r ScatterPlot_Median Rental Rate vs Age of Condominium, echo=FALSE, fig.width=8, fig.height=6}
 
@@ -462,7 +462,7 @@ median rental rates beyond 1.5km from MRT."
 
 ```
 
-### Boxplot between Regions & Districts
+#### Boxplot between Regions & Districts
 
 In this boxplot, we could see much variability of rental rates between each regions. It looks more pronounced between CCR and OCR - No Overlap of the confidence intervals between CCR and OCR
 
@@ -486,7 +486,7 @@ train_set %>%
  
 ```
 
-### ANOVA Test of Median Rent Rate between Regions
+#### ANOVA Test of Median Rent Rate between Regions
 
 As the p-value is less than the significance level 0.05, we can conclude that there are significant differences in regions, but between which regions? 
 
@@ -504,7 +504,7 @@ kable(tidy(aov_rent_region))
 
 ```
 
-#### TukeyHSD plot between regions
+##### TukeyHSD plot between regions
 
 We could see from this plot that each regions show signficant differences in their mean rental rate as none of the lines crosses the zero vertical.
 
@@ -515,7 +515,7 @@ plot (tukeyhsd_region, cex.axis = 0.6)
 
 ```
 
-### ANOVA Test of Median Rent Rate within CCR Region
+#### ANOVA Test of Median Rent Rate within CCR Region
 
 ```{r, echo=FALSE}
 
@@ -565,7 +565,7 @@ tukeyhsd_ccr_df_res <- tukeyhsd_ccr_df %>%
 
 ```
 
-#### TukeyHSD plot between districts in region CCR
+##### TukeyHSD plot between districts in region CCR
 
 From the plot below, we could see that only 2 district pair "02-01" and "09-01" crosses the zero line mark.
 
@@ -580,7 +580,7 @@ plot (tukeyhsd_ccr, cex.axis = 0.7)
 
 ```
 
-### ANOVA Test of Median Rent Rate within OCR Region
+#### ANOVA Test of Median Rent Rate within OCR Region
 
 ```{r,echo=FALSE}
 
@@ -636,7 +636,7 @@ kable(tukeyhsd_ocr_df_res , digits=2)
 
 ```
 
-#### TukeyHSD plot between districts in region OCR
+##### TukeyHSD plot between districts in region OCR
 
 ```{r, fig.height=7, fig.cap="TukeyHSD plot between districts in region OCR", fig.height=8}
 
@@ -649,7 +649,7 @@ plot (tukeyhsd_ocr, cex.axis = 0.6)
 
 ```
 
-### ANOVA Test of Median Rent Rate within RCR Region
+#### ANOVA Test of Median Rent Rate within RCR Region
 
 ```{r, echo=FALSE}
 
@@ -676,7 +676,6 @@ aov_rent_rcr <- aov(median_rent ~ district, data = train_set_rcr)
 kable(tidy(aov_rent_rcr), digits=2)
 
 ```
-
 
 ```{r,echo=TRUE}
 
@@ -707,7 +706,7 @@ kable(tukeyhsd_rcr_df_res, digits=2)
 
 ```
 
-#### TukeyHSD plot between districts in region RCR
+##### TukeyHSD plot between districts in region RCR
 
 ```{r, echp=TRUE, fig.height=8, fig.cap="TukeyHSD plot between districts in region RCR"}
 
@@ -720,7 +719,7 @@ plot (tukeyhsd_rcr, cex.axis = 0.6)
 
 ```
 
-### Summary of Results
+#### Summary of Results
 
 We could see that our one-way ANOVA tests is aligned with our data visualisation, that between each region, there are differences in their mean rental rate.
 
@@ -729,7 +728,7 @@ Our TukeyHSD results also show differences between multiple pairwise districts i
 We would therefore need to take into account of these variability when we start our modeling.
 
 
-# Hierarchical Clustering
+## Hierarchical Clustering
 
 Hierarchical clustering, also known as hierarchical cluster analysis, is an algorithm that groups similar objects into groups called clusters. The endpoint is a set of clusters, where each cluster is distinct from each other cluster, and the objects within each cluster are broadly similar to each other.
 
@@ -763,7 +762,7 @@ res_centroid <- hclust(d, method = "centroid" )
 
 ```
 
-## Cluster Dendrogram
+### Cluster Dendrogram
 
 We created 6 cluster dendrograms based on different distance measuring algorithms
 
@@ -843,7 +842,7 @@ fviz_nbclust(res_nbclust, ggtheme = theme_minimal())
 
 ```
 
-### Elbow method
+#### Elbow method
 
 Elbow suggest optimal 3 cluster.
 
@@ -862,7 +861,7 @@ fviz_nbclust(cluster_df, FUN = hcut,
 
 ```
 
-### Silhouette method
+#### Silhouette method
 
 Silhouette suggest optimal 4 cluster.
 
@@ -892,7 +891,7 @@ fviz_dend(res_complete, k = 3, # Cut in 3 groups
 
 ```
 
-## Visualise our Hierarchical Clustering
+### Visualise our Hierarchical Clustering
 
 ```{r, results="asis"}
 
@@ -1040,7 +1039,7 @@ df_grp2_p +
 
 ```
 
-## Heat Map for new clusters
+### Heat Map for new clusters
 
 We further created a heat map to compare the new cluster groupings with our original region groups.
 
@@ -1067,7 +1066,7 @@ df_grp2 %>%
 
 ```
 
-### District 05, 10 and 11
+#### District 05, 10 and 11
 
 Let's take a closer look at district 05, 10 and 11 using a lollipop chart.
 
@@ -1214,9 +1213,9 @@ df_grp3 %>%
 
 ```
 
-# Model
+## Model
 
-## Multiple Linear Regression
+### Multiple Linear Regression
 
 We will begin with a simple model of just 1 explanatory variable, condo_age and fit a linear regression model over "pooled" data to check the effect of condo aging on median rent rate.
 
@@ -1434,7 +1433,7 @@ summ(glm2, confint=TRUE)
 
 ```
 
-### Is glm2 model better than glm1 ?
+#### Is glm2 model better than glm1 ?
 
 We will use AIC, BIC and Adjusted R2 to access our models fitting power.
 
@@ -1540,7 +1539,7 @@ plot_summs(glm1,
            scale = TRUE)
 ```
 
-### Is there an interaction effect between Age of Condominium and MRT distance ?
+#### Is there an interaction effect between Age of Condominium and MRT distance ?
 
 We could see that condo which are located within 0.5 km of MRT range has a much steeper slope compared to the rest. i.e the median rental rate falls faster as condo ages.
 
@@ -1565,7 +1564,7 @@ interact_plot(glm3,
               legend.main = "MRT (km)")
 ```
 
-### Is glm3 model better than glm1 ?
+#### Is glm3 model better than glm1 ?
 
 Anova test shows that the interaction model (glm3) has more explanatory power when compared to glm1.
 
@@ -1575,7 +1574,7 @@ kable(anova(glm1,glm3,test="F"), digits=2)
 
 ```
 
-### Calculate AIC by hand
+#### Calculate AIC by hand
 
 Let's try to compute the AIC score for the full interaction model.
 
@@ -1592,7 +1591,7 @@ deviance + 2*(p+1)
 
 ```
 
-### Account for variability in Districts
+#### Account for variability in Districts
 
 From our one-way ANOVA and TukeyHSD results, we learnt that there is much variablity in the districts.
 
@@ -1624,7 +1623,7 @@ kable(anova(glm3, glm4, test="F"), digits=2)
 
 ```
 
-### Summary of Results
+#### Summary of Results
 
 The summary table below shows that glm4 is by far the best model so far with the lowest score for AIC and BIC. It also has the highest overall Pseudo R2 when compared to the rest. If the assumption of independence hold, including district as our explanatory variable maybe plausibe without overfiting to our model.
 
@@ -1652,7 +1651,7 @@ export_summs(glm1,glm2,glm3,glm4,
 
 ```
 
-## Multilevel models for hierarchically nested data
+### Multilevel models for hierarchically nested data
 
 A multilevel analysis is a data analysis that uses variables that are measured at different levels of the hierarchy. A hierarchy can have many levels such as in our case, districts and regions level, where condo are nested within districts and districts are nested within regions.
 
@@ -1666,12 +1665,12 @@ kable(table(train_set$district, train_set$region))
 
 ```
 
-In this model, we are allowing the intercepts to varying between each districts while keeping the fixed effect coefficients constant.
+In this model, we are allowing the intercepts to varying between each region while keeping the fixed effect coefficients constant.
 
 ```{r, echo=TRUE}
 
 m1 <- lmer(median_rent ~ mrt_dist_f * condo_age + 
-               (1 | district),
+               (1 | region),
                REML=TRUE,
                data=train_set)
 
@@ -1687,7 +1686,7 @@ From the dark grey lines, we can observed that we have underestimated the rental
 pl_mrt_base + geom_line(aes(x=condo_age,
                             y=fitted(m1),
                             col=mrt_dist_f,
-                            group=region),
+                            group=mrt_dist_f),
                         size=1) + 
   
    geom_line(aes(x=condo_age,
@@ -1700,7 +1699,7 @@ pl_mrt_base + geom_line(aes(x=condo_age,
               scales="free")
 ```
 
-### Comparing other linear mixed effects models
+#### Comparing other linear mixed effects models
 
 For the purpose of this study, we shall not perform an exhaustive list comparsion but restrict ourselves to the models below.
 
@@ -1712,20 +1711,20 @@ m2 <- lmer(median_rent ~  mrt_dist_f + condo_age + mrt_dist_f:condo_age +
             REML=TRUE,
             data=train_set)
 
+# Varying slope for condo age in each district 
+m3 <- lmer(median_rent ~ mrt_dist_f + condo_age + mrt_dist_f:condo_age +
+            (0 + condo_age|district),
+            REML=TRUE,
+            data=train_set) 
+
 # Different intercepts for each district with no interaction
-m3 <- lmer(median_rent ~  mrt_dist_f + condo_age +
+m4 <- lmer(median_rent ~  mrt_dist_f + condo_age +
             (1|district), 
             REML=TRUE,
             data=train_set) 
 
 # Different intercepts for each region with no interaction
-m4 <- lmer(median_rent ~ mrt_dist_f + condo_age +
-            (1|region),
-            REML=TRUE,
-            data=train_set) 
-
-# Different intercepts for each region with interaction 
-m5 <- lmer(median_rent ~ 1 + mrt_dist_f + condo_age + mrt_dist_f:condo_age +
+m5 <- lmer(median_rent ~ mrt_dist_f + condo_age +
             (1|region),
             REML=TRUE,
             data=train_set) 
@@ -1738,7 +1737,7 @@ m6 <- lmer(median_rent ~ mrt_dist_f + condo_age + mrt_dist_f:condo_age +
 
 ```
 
-### Is m2 better than m1 ?
+#### Is m2 better than m1 ?
 
 Anova test shows that m2 has more explanatory power than m1.
 
@@ -1748,7 +1747,7 @@ kable(anova(m1,m2, refit=FALSE), digits=2)
 
 ```
 
-### Summary of Results
+#### Summary of Results
 
 The best model, according to AIC/BIC and R-square score is model m2 that assumes varying slope for condo age with different intercepts in each district.
 
@@ -1771,7 +1770,7 @@ export_summs(m1,m2,m3,m4,m5,m6,
 
 ```
 
-### Model m2
+#### Model m2
 
 By accounting for age variability across all 28 districts using random effects, we find that our explanatory power increases over model m1.
 
@@ -1790,8 +1789,8 @@ summ(m2, confint=TRUE)
 
 ```
 
-### Assumption Check
-#### Assumption 1: Linearity
+#### Assumption Check
+##### Assumption 1: Linearity
 
 A regression analysis is meant to fit the best rectilinear line that explains the most data given your set of parameters. Therefore, the base models rely on the assumption that your data follows a straight line (though the models can be expanded to handle curvilinear data).
 
@@ -1808,7 +1807,7 @@ m5_age_linearity <- plot(train_set$condo_age,
 
 ```
 
-#### Assumption 2: Homogeneity of Variance
+##### Assumption 2: Homogeneity of Variance
 
 The assumption of homogeneity of variance is an assumption of the independent samples t-test and ANOVA stating that all comparison groups have the same variance.
 
@@ -1847,7 +1846,7 @@ plot(simulationOutput)
 
 ```
 
-### Model validation
+#### Model validation
 
 Let's use the test dataset we have obtained earlier and try to fit it using our best model m2.
 
@@ -1881,7 +1880,7 @@ modelr::rmse(glm4,test_set)
 
 ```
 
-#### Cross-validation
+##### Cross-validation
 
 While spliting our dataset into training and testing set allow us to check our model fit over new data, there are some risks that a few outliers may render our fit differently, resulting in overfitting.
 
@@ -1899,7 +1898,7 @@ test_set_s <- test_set %>%
 
 ```
 
-##### k-Fold Cross-Validation
+**k-Fold Cross-Validation**
 
 This procedure has a parameter called number that refers to the number of groups that a given data sample is to be split into. As such, the procedure is often called k-fold cross-validation. When a specific value for k is chosen such as k=10, it becomes a 10-fold cross-validation.
 
@@ -1933,7 +1932,7 @@ modelr::rmse(cv1,test_set_s)
 
 ```
 
-##### Random Forest
+**Random Forest**
 
 Random forest builds multiple decision trees and merges them together to get a more accurate and stable prediction.
 
@@ -1959,7 +1958,7 @@ plot(cv2)
 
 ```
 
-# Interpretation of the Results
+## Interpretation of the Results
 
 From our data science project, we could observe the following three key findings:
 
@@ -1969,7 +1968,7 @@ From our data science project, we could observe the following three key findings
 
 2. We further apply Machine Learning using K-Fold and Random Forest method for our cross validation. K-Fold method has similar AIC score compared to our m2 whereas Random Forest has a higher R2 score. Both our trained predictive models performed equally well when we used RMSE as a benchmark for goodness of fit over test data. 
 
-# Implications
+## Implications
 
 We had looked at the relationship of rental rate with the Condo location and we discovered that, statistically, we can still find cheaper rent rates in expensive region like CCR. 
 
@@ -1977,16 +1976,15 @@ Similarly, for property buyers who wanted to find higher rental yields, they can
 
 In a boxplot for rent vs age, condo in OCR region are mostly more that 10 years and it could be mostly those Executive Condominium ("EC") that passed the mandatory "Minimum Occupancy Rate" of 5 years and put out to market for rent. This could mean why we see a drop in rental rate for condo above 10 years.
 
-# Limitations and Future Directions
+## Limitations and Future Directions
 
 Our analysis are focusing on transacted condo rental rates that happens during the 3 years from 2015 to 2017 to analyse for the significance of relationship of the rental rates with the age of condo, distance from MRT and its locations. It cannot determine if a causal relationship exist between the location, age, distance from MRT or rental rates.
 
 We acknowledge that the global and local economic conditions play significant influence on the movement of Singapore property rental market, in particular, the movement of motgage interest rates, government's properties cooling measure and the influx of foreign talents staying in Singapre that drive the properties' demand.
 
-Our lollipop function provides a holistic way for users to view rental rate in each district with respect to the age of the property. This can act as a useful benchmark for bargain hunters or property buyers when deciding to rent/buy a property in a particular district. It has the potential to develop further using Shiny into a web tool, to be used by property agents when marketing new properties to potential owners.
+Our lollipop function provides a holistic way for users to view rental rate in each district with respect to the age of the property. This can act as a useful benchmark for bargain hunters or landlords when deciding to rent/buy a property in a particular district. It has the potential to develop further using Shiny into a web tool, to be used by property agents when marketing new properties to potential owners.
 
-
-# References
+## References
 
 * https://www.r-bloggers.com/visualising-residuals/
 * https://r4ds.had.co.nz/explore-intro.html
@@ -1995,9 +1993,9 @@ Our lollipop function provides a holistic way for users to view rental rate in e
 * https://rstudio-pubs-static.s3.amazonaws.com/78961_fe5b5c6a77f446eca899afbb32bd1dc7.html
 
 
-# Appendix
+## Appendix
 
-## Singapore Map 
+### Singapore Map 
 
 ![Source: List International Realty Pte Ltd](https://site.listsothebysrealty.sg/wp-content/uploads/2019/01/3-02.jpg)
 
