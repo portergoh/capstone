@@ -668,7 +668,7 @@ district_summary_rcr <- group_by(train_set_rcr, district) %>%
 
 p-value is less than the significance level 0.05, we can conclude that there are significant differences of rental rates within the RCR region.
 
-```{r., echo=TRUE}
+```{r, echo=TRUE}
 
 aov_rent_rcr <- aov(median_rent ~ district, data = train_set_rcr)
 kable(tidy(aov_rent_rcr), digits=2)
