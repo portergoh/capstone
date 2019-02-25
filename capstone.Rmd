@@ -880,7 +880,7 @@ We can visualize using factoextra by cutting into 3 groups by color.
 
 par(mar=c(1,5,5,5))
 
-fviz_dend(res_complete, k = 3, # Cut in 3 groups
+fviz_dend(res_ward2, k = 3, # Cut in 3 groups
           cex = 0.8, # label size
           k_colors = c("#2E9FDF", "#00AFBB", "#E7B800"),
           color_labels_by_k = TRUE, # color labels by groups
@@ -974,7 +974,6 @@ round(crosstab, 2)
 
 
 # Add mean and sd of median_rent for each district is each group
-
 avg_table <- as.tibble(df_grp %>% 
                          group_by(grp, district) %>%
                          summarise(avg = round(mean(median_rent),2),
@@ -1605,6 +1604,34 @@ glm4 <- glm(median_rent ~ mrt_dist_f * condo_age + district,
 
 ```
 
+```{r, fig.height=8, fig.cap="Plot of Median Rental Rate/sqft vs Age of Condominium with glm4 model"}
+
+ggplot(data=train_set) + 
+  
+  geom_point(aes(x=condo_age,y=median_rent), 
+             position = 'jitter',
+             alpha = 0.3, 
+             size = 2) +
+  
+  geom_line(aes(x=condo_age,y=fitted(glm4),
+                group=mrt_dist_f),
+                color="tomato4",
+                size=1) + 
+  
+  facet_wrap(~ district,
+             nrow = 7,
+             scales="free") +
+  
+  labs(x="Age of Condominium", 
+       y="Median Rental Rate/sqft",
+       caption = "Source: Urban Redevelopment Authority (URA)") +
+  
+  theme(axis.text = element_text(size = rel(.90)),
+        plot.title = element_text(face = "bold", hjust = 0.5),
+        plot.subtitle = element_text(hjust = 0.5))
+
+```
+
 While we see that glm4 improves our score drastically and anova test shows that this new model indeed has more explanatory power when compared to the previous.
 
 However, there is one caveat here, one of the key assumption of anova is that our collected condo transaction should be independent of each other. 
@@ -1962,11 +1989,11 @@ plot(cv2)
 
 From our data science project, we could observe the following three key findings:
 
-1.	Our TukeyHSD results show significant differences between multiple pairwise districts in rental rate rate. We introduce random effects to account for this variability at the district level by having varying intercepts and varying slope for condo age at each district. The Multilevel model (m2) has the best score among others based on R2, AIC and BIC.
+1. Our TukeyHSD results show significant differences between multiple pairwise districts in rental rate rate. We introduce random effects to account for this variability at the district level by having varying intercepts and varying slope for condo age at each district. The Multilevel model (m2) has the best score among others based on R2, AIC and BIC.
 
 2. We also used Generalised Linear Model with log link family to account for variability at the district level. This model (glm4) has shown to be capable of fitting new data as we have quite similar RMSE value between our train and test dataset.
 
-2. We further apply Machine Learning using K-Fold and Random Forest method for our cross validation. K-Fold method has similar AIC score compared to our m2 whereas Random Forest has a higher R2 score. Both our trained predictive models performed equally well when we used RMSE as a benchmark for goodness of fit over test data. 
+3. We further apply Machine Learning using K-Fold and Random Forest method for our cross validation. K-Fold method has similar AIC score compared to our m2 whereas Random Forest has a higher R2 score. Both our trained predictive models performed equally well when we used RMSE as a benchmark for goodness of fit over test data. 
 
 ## Implications
 
