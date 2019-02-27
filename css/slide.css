@@ -1,0 +1,22 @@
+
+.h1,.h2,.h3 { /* Margin */
+  margin-top: 5px;
+}
+
+#future-steps {
+  color: darkblue;
+}
+
+.emphasized {
+  font-size: 1.4em;
+}
+
+.gdbar img {
+  width: 900px !important;
+  height: 500px !important;
+  margin: 3px 3px;
+}
+
+div.blue { background-color:#e6f0ff; border-radius: 6px; padding: 14px;}
+div.green { background-color:#E0F1D9; border-radius: 6px; padding: 14px;}
+
